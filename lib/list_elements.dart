@@ -2,19 +2,22 @@ import 'package:flutter_svg/svg.dart';
 import 'package:notification_it/webView.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'main.dart';
 
 class ElementWidget extends StatefulWidget {
   final bool important;
   final String date;
-  final String topic;
-  final String url;
+  final String title;
+  final String link;
+  final String major;
 
 
   ElementWidget({
     required this.important,
     required this.date,
-    required this.topic,
-    required this.url,
+    required this.title,
+    required this.link,
+    required this.major
   });
 
   @override
@@ -22,6 +25,7 @@ class ElementWidget extends StatefulWidget {
 }
 
 class _ElementWidgetState extends State<ElementWidget> {
+  MainPage mainPage = MainPage(title: '알림it');
   BookmarkManager bookmarkManager = BookmarkManager();
   bool _isBookmarked = false;
   late Future<bool> _isBookmarkedFuture;
@@ -30,20 +34,24 @@ class _ElementWidgetState extends State<ElementWidget> {
   void initState() {
     super.initState();
     _loadBookmarkStatus();
-    _isBookmarkedFuture = BookmarkManager.isBookmarked(widget.date, widget.topic);
+    _isBookmarkedFuture = BookmarkManager.isBookmarked(widget.date, widget.title);
   }
 
   Future<void> _loadBookmarkStatus() async {
-    bool bookmarked = await BookmarkManager.isBookmarked(widget.date, widget.topic);
+    bool bookmarked = await BookmarkManager.isBookmarked(widget.date, widget.title);
     setState(() {
       _isBookmarked = bookmarked;
     });
   }
 
   void _toggleBookmark() async {
-    await BookmarkManager.toggleBookmark(widget.date, widget.topic);
+    await BookmarkManager.toggleBookmark(widget.date, widget.title);
     setState(() {
       _isBookmarked = !_isBookmarked; // 즉시 상태 업데이트
+      final mainPageState = MainPage.of(context); // MainPage.of() 호출
+      if (mainPageState != null) {
+        mainPageState.updateElements(); // MainPage의 상태를 업데이트
+      }
     });
   }
 
@@ -54,7 +62,7 @@ class _ElementWidgetState extends State<ElementWidget> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => WebViewPage(url: widget.url),
+            builder: (context) => WebViewPage(url: widget.link),
           ),
         );
       },
@@ -118,7 +126,7 @@ class _ElementWidgetState extends State<ElementWidget> {
                       ),
                       SizedBox(height: 10.0),
                       Text(
-                        widget.topic,
+                        widget.title,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14.42,
@@ -133,7 +141,7 @@ class _ElementWidgetState extends State<ElementWidget> {
                 IconButton(
                   onPressed: _toggleBookmark,
                   icon: FutureBuilder<bool>(
-                    future: BookmarkManager.isBookmarked(widget.date, widget.topic),
+                    future: BookmarkManager.isBookmarked(widget.date, widget.title),
                     builder: (context, snapshot) {
                       bool isBookmarked = snapshot.data ?? false;
                       return SvgPicture.asset(

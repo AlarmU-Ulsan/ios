@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:notification_it/splashScreen.dart';
 import 'package:notification_it/webView.dart';
-import 'list_elements.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'list_elements.dart';
+import 'GET_notice.dart';
+import 'api_service.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -58,31 +61,40 @@ class MainPage extends StatefulWidget {
 
   @override
   State<MainPage> createState() => _MainPageState();
+  static _MainPageState? of(BuildContext context) {
+    return context.findAncestorStateOfType<_MainPageState>();
+  }
 }
 
 class _MainPageState extends State<MainPage> {
   BookmarkManager bookmarkManager = BookmarkManager();
 
-  final List<ElementWidget> elements = [
+  // late Future<List<notice>> notices;
+  List<ElementWidget> elements = [
     ElementWidget(
         important: true,
         date: '2024-09-11',
-        topic: '★(필독) 2024-2 전공상담ll 안내사항 ★(총 2회 제출 필수)',
-        url: 'https://cicweb.ulsan.ac.kr/cicweb/1024?action=view&no=257361',
+        title: '★(필독) 2024-2 전공상담ll 안내사항 ★(총 2회 제출 필수)',
+        link: 'https://cicweb.ulsan.ac.kr/cicweb/1024?action=view&no=257361',
+      major: 'AI융합전공',
     ),
     ElementWidget(
         important: true,
         date: '2024-11-06',
-        topic: '★필독★ IT융합학부 프로그래밍 경진대회 안내',
-        url: 'https://cicweb.ulsan.ac.kr/cicweb/1024?action=view&no=259533',
+        title: '★필독★ IT융합학부 프로그래밍 경진대회 안내',
+        link: 'https://cicweb.ulsan.ac.kr/cicweb/1024?action=view&no=259533',
+      major: 'AI융합전공',
     ),
     ElementWidget(
         important: false,
         date: '2025-01-21',
-        topic: '2025-1학기 수강신청 안내',
-        url: 'https://cicweb.ulsan.ac.kr/cicweb/1024?action=view&no=261810',
+        title: '2025-1학기 수강신청 안내',
+        link: 'https://cicweb.ulsan.ac.kr/cicweb/1024?action=view&no=261810',
+      major: 'IT융합전공',
     )
   ];
+  late List<ElementWidget> filteredElements;
+  bool isFiltering = false; // 필터링 상태
 
   Future<List<ElementWidget>> getBookmarkedElements() async {
     List<ElementWidget> allElements = elements;
@@ -90,7 +102,7 @@ class _MainPageState extends State<MainPage> {
     List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
 
     return allElements.where((element) {
-      return bookmarkedItems.contains('${element.date}|${element.topic}');
+      return bookmarkedItems.contains('${element.date}|${element.title}');
     }).toList();
   }
 
@@ -149,8 +161,8 @@ class _MainPageState extends State<MainPage> {
 
   Widget _bellIcon() {
     bool isSelected_bell = selected_bell;
-    return IconButton(
-      onPressed: () {
+    return GestureDetector(
+      onTap: () {
         setState(() {
           if (!selected_bell)
             showNotification('알림이 설정되었습니다');
@@ -159,14 +171,13 @@ class _MainPageState extends State<MainPage> {
           selected_bell = !selected_bell;
         });
       },
-      icon: isSelected_bell
+      child: isSelected_bell
           ? SvgPicture.asset(
-              'assets/icons/알림it_bell_O.svg',
-            )
+        'assets/icons/알림it_bell_O.svg',
+      )
           : SvgPicture.asset(
-              'assets/icons/알림it_bell_X.svg',
-            ),
-      iconSize: 160,
+        'assets/icons/알림it_bell_X.svg',
+      ),
     );
   }
 
@@ -181,6 +192,7 @@ class _MainPageState extends State<MainPage> {
           setState(() {
             selectedIndex = 0;
             printBookmarks();
+            updateElements();
           });
         },
         child: SvgPicture.asset(
@@ -202,6 +214,7 @@ class _MainPageState extends State<MainPage> {
           setState(() {
             selectedIndex = 1;
             printBookmarks();
+            updateElements();
           });
         },
         child: SvgPicture.asset(
@@ -223,6 +236,7 @@ class _MainPageState extends State<MainPage> {
           setState(() {
             selectedIndex = 2;
             printBookmarks();
+            updateElements();
           });
         },
         child: SvgPicture.asset(
@@ -274,6 +288,7 @@ class _MainPageState extends State<MainPage> {
         onTap: () {
           setState(() {
             selectedBSIndex = index;
+            selectedBSIndex2 = 0;
             _updateButtonText(val);
           });
         },
@@ -300,7 +315,6 @@ class _MainPageState extends State<MainPage> {
       ),
     );
   } // 하단 시트 버튼
-
   Widget _ITAIButton(int index, String text, String val) {
     bool isSelected = selectedBSIndex2 == index;
     return SizedBox(
@@ -341,13 +355,27 @@ class _MainPageState extends State<MainPage> {
     List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
 
     return elements.where((element) {
-      bool isBookmarked = bookmarkedItems.contains('${element.date}|${element.topic}');
+      bool isBookmarked = bookmarkedItems.contains('${element.date}|${element.title}');
 
       if (selectedIndex == 1 && !element.important) return false;
       if (selectedIndex == 2 && !isBookmarked) return false;
 
-      return element.topic.contains(searchQuery);
+      return element.title.contains(searchQuery);
     }).toList();
+  }
+
+  void updateElements() async {
+    List<ElementWidget> filteredElements = await getFilteredElements();
+    setState(() {
+      filteredElements = filteredElements;
+    });
+  }
+
+  @override
+  void initState(){
+    super.initState();
+    // notices=ApiService().fetchNotices();
+    filteredElements = elements;
   }
 
   @override
@@ -572,8 +600,8 @@ class _MainPageState extends State<MainPage> {
                                     if (selectedBSIndex == 1)
                                       Column(
                                         children: [
-                                          _ITAIButton(0, 'IT 융합전공', 'IT'),
-                                          _ITAIButton(1, 'AI 융합전공', 'AI')
+                                          _ITAIButton(1, 'IT 융합전공', 'IT'),
+                                          _ITAIButton(2, 'AI 융합전공', 'AI')
                                         ],
                                       )
                                   ],
