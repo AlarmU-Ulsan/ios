@@ -4,9 +4,9 @@ import 'package:notification_it/splashScreen.dart';
 import 'package:notification_it/webView.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 import 'list_elements.dart';
-import 'GET_notice.dart';
 import 'api_service.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -49,7 +49,6 @@ class Notification_IT extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: '알림it',
       home: SplashScreen(),
-
     );
   }
 }
@@ -67,45 +66,85 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  BookmarkManager bookmarkManager = BookmarkManager();
+  //북마크
+  BookmarkManager bookmarkManager = BookmarkManager(); //북마크 관리
 
-  // late Future<List<notice>> notices;
-  List<ElementWidget> elements = [
-    ElementWidget(
-        important: true,
-        date: '2024-09-11',
-        title: '★(필독) 2024-2 전공상담ll 안내사항 ★(총 2회 제출 필수)',
-        link: 'https://cicweb.ulsan.ac.kr/cicweb/1024?action=view&no=257361',
-      major: 'AI융합전공',
-    ),
-    ElementWidget(
-        important: true,
-        date: '2024-11-06',
-        title: '★필독★ IT융합학부 프로그래밍 경진대회 안내',
-        link: 'https://cicweb.ulsan.ac.kr/cicweb/1024?action=view&no=259533',
-      major: 'AI융합전공',
-    ),
-    ElementWidget(
-        important: false,
-        date: '2025-01-21',
-        title: '2025-1학기 수강신청 안내',
-        link: 'https://cicweb.ulsan.ac.kr/cicweb/1024?action=view&no=261810',
-      major: 'IT융합전공',
-    )
-  ];
-  late List<ElementWidget> filteredElements;
-  bool isFiltering = false; // 필터링 상태
 
-  Future<List<ElementWidget>> getBookmarkedElements() async {
-    List<ElementWidget> allElements = elements;
+  int pageNum = 0;
+  int categoryNum = 2;
+  List<ElementWidget> elements = [];
+  Future<void> fetchInitialData() async {
+    List<ElementWidget> result = await getFilteredElements(); // 비동기 데이터 로드
+    setState(() {
+      elements = result;
+    });
+  } //데이터 불러오기
 
+  Future<List<ElementWidget>> getFilteredElements() async {
+    final ApiService apiService = ApiService(
+        url:
+            "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum"); // API URL 입력
     List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
 
-    return allElements.where((element) {
-      return bookmarkedItems.contains('${element.date}|${element.title}');
-    }).toList();
+    try {
+      List<Notice> notices = await apiService.fetchNotices();
+
+      // Notice 데이터를 ElementWidget 리스트로 변환
+      List<ElementWidget> elements = notices.map((notice) {
+        return ElementWidget(
+          id: notice.id,
+          title: notice.title,
+          date: notice.date,
+          link: notice.link,
+          type: notice.type, // 필요 시 수정
+          major: notice.major,
+        );
+      }).toList();
+
+      // 필터링 적용
+      return elements.where((element) {
+        bool isBookmarked =
+            bookmarkedItems.contains('${element.date}|${element.title}');
+
+        if (selectedIndex == 1 && element.type != "NOTICE")
+          return false; // "중요" 공지만 보기
+        if (selectedIndex == 2 && !isBookmarked) return false; // 북마크된 항목만 보기
+
+        return element.title.contains(searchQuery); // 검색 필터 적용
+      }).toList();
+    } catch (e) {
+      print("데이터 로드 실패: $e");
+      return []; // 오류 발생 시 빈 리스트 반환
+    }
+  } //필터링 후 위젯으로 변환
+
+  //스크롤에 대한 동작
+  bool isLoading = false; // 데이터를 로딩 중인지 확인하는 변수
+
+  //푸시알림
+  Widget _bellIcon() {
+    bool isSelected_bell = selected_bell;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          if (!selected_bell)
+            showNotification('알림이 설정되었습니다');
+          else
+            showNotification('알림이 해제되었습니다');
+          selected_bell = !selected_bell;
+        });
+      },
+      child: isSelected_bell
+          ? SvgPicture.asset(
+              'assets/icons/알림it_bell_O.svg',
+            )
+          : SvgPicture.asset(
+              'assets/icons/알림it_bell_X.svg',
+            ),
+    );
   }
 
+  bool selected_bell = false; //알림 on/off
   Future<void> showNotification(String text) async {
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
@@ -125,62 +164,14 @@ class _MainPageState extends State<MainPage> {
       text,
       notificationDetails,
     );
-  } //푸시알림
+  } //알림
 
-  static Future<void> printBookmarks() async {
-    final prefs = await SharedPreferences.getInstance();
-    final bookmarks = prefs.getStringList(BookmarkManager.bookmarkKey) ?? [];
-    print('저장된 북마크 목록: $bookmarks');
-  }//북마크 목록 확인
-
-  bool isTextFieldVisible = false; //검색창
+  //검색창
+  bool isTextFieldVisible = false;
   TextEditingController _controller = TextEditingController();
-
-  bool selected_bell = false; //알림
-  int selectedIndex = 0; // 전체, 중요 공지, 북마크
-
-  int selectedBSIndex = 0;
-  int selectedBSIndex2 = 0;
-
   String searchQuery = ''; //검색어 저장 변수
 
-  void _toggleBottomSheet() {
-    setState(() {
-      _isBottomSheetVisible = !_isBottomSheetVisible;
-    });
-  } //하단 창
-
-  bool _isBottomSheetVisible = false;
-  String buttonText = "IT";
-
-  void _updateButtonText(String newText) {
-    setState(() {
-      buttonText = newText; // 외부 버튼 텍스트 업데이트
-    });
-  }
-
-  Widget _bellIcon() {
-    bool isSelected_bell = selected_bell;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (!selected_bell)
-            showNotification('알림이 설정되었습니다');
-          else
-            showNotification('알림이 해제되었습니다');
-          selected_bell = !selected_bell;
-        });
-      },
-      child: isSelected_bell
-          ? SvgPicture.asset(
-        'assets/icons/알림it_bell_O.svg',
-      )
-          : SvgPicture.asset(
-        'assets/icons/알림it_bell_X.svg',
-      ),
-    );
-  }
-
+  //필터 버튼
   Widget _allInfoButton() {
     bool isSelected = selectedIndex == 0;
 
@@ -191,8 +182,8 @@ class _MainPageState extends State<MainPage> {
         onTap: () {
           setState(() {
             selectedIndex = 0;
-            printBookmarks();
-            updateElements();
+            loadData();
+            print('all');
           });
         },
         child: SvgPicture.asset(
@@ -203,6 +194,7 @@ class _MainPageState extends State<MainPage> {
       ),
     );
   }
+
   Widget _importantInfoButton() {
     bool isSelected = selectedIndex == 1;
 
@@ -213,8 +205,8 @@ class _MainPageState extends State<MainPage> {
         onTap: () {
           setState(() {
             selectedIndex = 1;
-            printBookmarks();
-            updateElements();
+            loadData();
+            print('important');
           });
         },
         child: SvgPicture.asset(
@@ -225,6 +217,7 @@ class _MainPageState extends State<MainPage> {
       ),
     );
   }
+
   Widget _bookmarkInfoButton() {
     bool isSelected = selectedIndex == 2;
 
@@ -235,8 +228,8 @@ class _MainPageState extends State<MainPage> {
         onTap: () {
           setState(() {
             selectedIndex = 2;
-            printBookmarks();
-            updateElements();
+            loadData();
+            print('bookmark');
           });
         },
         child: SvgPicture.asset(
@@ -248,139 +241,182 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  Widget _buildButton(int index, String text, double width) {
-    bool isSelected = selectedIndex == index;
-    return SizedBox(
-      height: 26.64,
-      width: width,
-      child: ElevatedButton(
-        onPressed: () {
-          setState(() {
-            selectedIndex = index; // 선택된 버튼의 index 변경
-            if(index==2){printBookmarks();};
-          });
-        },
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          padding: EdgeInsets.zero,
-          backgroundColor: isSelected ? Color(0xff009D72) : Color(0xffEEEEEE),
-        ),
-        child: Center(
-          child: Padding(padding: EdgeInsets.only(top: 2  ), child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 15.12,
-              fontWeight: FontWeight.bold,
-              color: isSelected ? Color(0xffFFFFFF) : Color(0xff666666),
-            ),
-          ),)
-        ),
-      ),
-    );
-  } //전체, 중요 공지, 북마크
+  //필터 값
+  int selectedIndex = 0; // 0: 전체, 1: 중요 공지, 2: 북마크
+  int selectedBSIndex = 0; // 0: ICT, 1: IT
+  int selectedBSIndex2 = 0; // 0: IT, 1: AI
 
-  Widget _ITICTButton(int index, String text, String val) {
-    bool isSelected = selectedBSIndex == index;
-    return SizedBox(
-      height: 55,
-      width: 155,
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            selectedBSIndex = index;
-            selectedBSIndex2 = 0;
-            _updateButtonText(val);
-          });
-        },
-        child: Container(
-            height: 55,
-            width: 155,
-            margin: EdgeInsets.only(top: 5),
-            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-            decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(
-                    color: isSelected ? Colors.black : Colors.white)),
-            child: DefaultTextStyle(
-              style: TextStyle(
-                fontSize: 17.69,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-              child: Text(
-                text,
-              ),
-            )),
-      ),
-    );
-  } // 하단 시트 버튼
-  Widget _ITAIButton(int index, String text, String val) {
-    bool isSelected = selectedBSIndex2 == index;
-    return SizedBox(
-      height: 55,
-      width: 155,
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            selectedBSIndex2 = index;
-            _updateButtonText(val);
-          });
-        },
-        child: Container(
-            height: 55,
-            width: 155,
-            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-            margin: EdgeInsets.only(top: 5),
-            decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(
-                    color: isSelected ? Colors.black : Colors.white)),
-            child: DefaultTextStyle(
-              style: TextStyle(
-                fontSize: 17.69,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-              child: Text(
-                text,
-              ),
-            )),
-      ),
-    );
-  } // 하단 시트 버튼
-
-  Future<List<ElementWidget>> getFilteredElements() async {
+  //새로 시작
+  Future<void> updateElements() async {
     List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
+    // 북마크된 항목을 새로 불러오기
+    List<Notice> notices = await loadBookmarkedItems(bookmarkedItems);
 
-    return elements.where((element) {
-      bool isBookmarked = bookmarkedItems.contains('${element.date}|${element.title}');
+    // 새로 불러온 데이터를 화면에 표시하기 위해 ElementWidget으로 변환
+    List<ElementWidget> fetchedElements = notices.map((notice) {
+      return ElementWidget(
+        id: notice.id,
+        title: notice.title,
+        date: notice.date,
+        link: notice.link,
+        type: notice.type,
+        major: notice.major,
+      );
+    }).toList();
 
-      if (selectedIndex == 1 && !element.important) return false;
-      if (selectedIndex == 2 && !isBookmarked) return false;
+    setState(() {
+      if (selectedIndex==2) {
+        elements = fetchedElements; // 새로 불러온 데이터로 업데이트
+      }
+    });
+  }
+  Future<List<Notice>> loadBookmarkedItems(List<String> bookmarkedItems) async {
+    final apiService = ApiService(
+        url: "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
 
-      return element.title.contains(searchQuery);
+    List<Notice> allNotices = await apiService.fetchNotices(); // 전체 데이터를 불러옴
+
+    return allNotices.where((notice) {
+      // 북마크된 항목만 필터링
+      return bookmarkedItems.contains('${notice.id}');
     }).toList();
   }
+  Future<void> loadData() async {
+    try {
+      final ApiService apiServiceAll = ApiService(
+          url:
+              "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=0");
+      final ApiService apiServiceImportant = ApiService(
+          url:
+          "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=0");
+      List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
+      List<Notice> notices;
 
-  void updateElements() async {
-    List<ElementWidget> filteredElements = await getFilteredElements();
+      if (selectedIndex == 0) {
+        // 전체 데이터를 가져오는 경우, 새로 API 호출하지 않고 기존 elements 그대로 사용
+        notices = await apiServiceAll.fetchNotices();
+      } else if (selectedIndex == 1) {
+        print(selectedIndex);
+        // 중요 데이터를 가져오는 경우, 새로 API 호출 후 중요 필터링
+        notices = await apiServiceImportant.fetchNotices();
+        notices = notices
+            .where((notice) => notice.type == "NOTICE")
+            .toList(); // 중요 공지만 필터링
+      } else if (selectedIndex == 2) {
+        // 북마크된 데이터를 가져오는 경우
+        notices = await loadBookmarkedItems(bookmarkedItems);
+        // selectedIndex == 2;
+      } else {
+        notices = [];
+      }
+
+      // Notice 데이터를 ElementWidget 리스트로 변환
+      List<ElementWidget> fetchedElements = notices.map((notice) {
+        return ElementWidget(
+          id: notice.id,
+          title: notice.title,
+          date: notice.date,
+          link: notice.link,
+          type: notice.type,
+          major: notice.major,
+        );
+      }).toList();
+
+      setState(() {
+        elements = fetchedElements; // 새로운 데이터를 elements에 할당
+        isLoading = false; // 로딩 완료
+      });
+
+
+    } catch (e) {
+      setState(() {
+        isLoading = false; // 오류 발생 시 로딩 종료
+      });
+      print("데이터 로드 실패: $e");
+    }
+  }
+  Future<void> loadNewData() async {
     setState(() {
-      filteredElements = filteredElements;
+      pageNum++;
     });
+    try {
+      final ApiService apiServiceAll = ApiService(
+          url:
+          "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
+      final ApiService apiServiceImportant = ApiService(
+          url:
+          "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
+      List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
+      List<Notice> notices;
+
+      if (selectedIndex == 0) {
+        // 전체 데이터를 가져오는 경우, 새로 API 호출하지 않고 기존 elements 그대로 사용
+        notices = await apiServiceAll.fetchNotices();
+      } else if (selectedIndex == 1) {
+        print(selectedIndex);
+        // 중요 데이터를 가져오는 경우, 새로 API 호출 후 중요 필터링
+        notices = await apiServiceImportant.fetchNotices();
+        notices = notices
+            .where((notice) => notice.type == "NOTICE")
+            .toList(); // 중요 공지만 필터링
+      } else if (selectedIndex == 2) {
+        // 북마크된 데이터를 가져오는 경우
+        notices = await loadBookmarkedItems(bookmarkedItems);
+        // selectedIndex == 2;
+      } else {
+        notices = [];
+      }
+
+      // Notice 데이터를 ElementWidget 리스트로 변환
+      List<ElementWidget> fetchedElements = notices.map((notice) {
+        return ElementWidget(
+          id: notice.id,
+          title: notice.title,
+          date: notice.date,
+          link: notice.link,
+          type: notice.type,
+          major: notice.major,
+        );
+      }).toList();
+
+      setState(() {
+        elements.addAll(fetchedElements); // 새로운 데이터를 elements에 할당
+        isLoading = false; // 로딩 완료
+      });
+
+
+    } catch (e) {
+      setState(() {
+        isLoading = false; // 오류 발생 시 로딩 종료
+      });
+      print("데이터 로드 실패: $e");
+    }
+  }
+
+  ScrollController _scrollController = ScrollController();
+  void _scrollListener() {
+      if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
+        // 스크롤 끝에 도달하면 추가 데이터를 로드
+        loadNewData(); // 필요한 filterType을 넣어 호출
+        }
   }
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
-    // notices=ApiService().fetchNotices();
-    filteredElements = elements;
+    fetchInitialData();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Stack(
       children: [
         Scaffold(
@@ -405,56 +441,54 @@ class _MainPageState extends State<MainPage> {
                           curve: Curves.easeInOut, // 부드러운 애니메이션 효과
                           child: isTextFieldVisible
                               ? SizedBox(
-                                  height: 29,
-                                  child: TextField(
-                                    controller: _controller,
-                                    style: TextStyle(
-                                        fontSize: 15.12,
-                                        fontWeight: FontWeight.bold),
-                                    onChanged: (val) {
-                                      setState(() {
-                                        searchQuery = val; // 🔹 검색어 업데이트
-                                      });
-                                    },
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                          borderSide: BorderSide(
-                                              color: Color(0xffDEDEDE)),
-                                          borderRadius:
-                                              BorderRadius.circular(67)),
-                                      contentPadding:
-                                          EdgeInsets.symmetric(horizontal: 15),
-                                      filled: true,
-                                      fillColor: Color(0xffDEDEDE),
-                                      enabledBorder: OutlineInputBorder(
-                                          borderSide: BorderSide(
-                                              color: Color(0xffDEDEDE)),
-                                          borderRadius:
-                                              BorderRadius.circular(67)),
-                                      focusedBorder: OutlineInputBorder(
-                                          borderSide: BorderSide(
-                                              color: Color(0xffDEDEDE)),
-                                          borderRadius:
-                                              BorderRadius.circular(67)),
-                                    ),
-                                  ),
-                                )
+                            height: 29,
+                            child: TextField(
+                              controller: _controller,
+                              style: TextStyle(
+                                  fontSize: 15.12,
+                                  fontWeight: FontWeight.bold),
+                              onChanged: (val) {
+                                setState(() {
+                                  searchQuery = val; // 🔹 검색어 업데이트
+                                });
+                              },
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(
+                                    borderSide:
+                                    BorderSide(color: Color(0xffDEDEDE)),
+                                    borderRadius: BorderRadius.circular(67)),
+                                contentPadding:
+                                EdgeInsets.symmetric(horizontal: 15),
+                                filled: true,
+                                fillColor: Color(0xffDEDEDE),
+                                enabledBorder: OutlineInputBorder(
+                                    borderSide:
+                                    BorderSide(color: Color(0xffDEDEDE)),
+                                    borderRadius: BorderRadius.circular(67)),
+                                focusedBorder: OutlineInputBorder(
+                                    borderSide:
+                                    BorderSide(color: Color(0xffDEDEDE)),
+                                    borderRadius: BorderRadius.circular(67)),
+                              ),
+                            ),
+                          )
                               : SizedBox(), // 입력창이 없을 때 빈 공간 처리
                         ),
                         if (!isTextFieldVisible) _bellIcon(),
                         if (isTextFieldVisible)
                           IconButton(
-                              padding: EdgeInsets.zero,
-                              onPressed: () {
-                                setState(() {
-                                  isTextFieldVisible = !isTextFieldVisible;
-                                  searchQuery = '';
-                                });
-                              },
-                              icon: Icon(
-                                Icons.close,
-                                size: 20,
-                              ))
+                            padding: EdgeInsets.zero,
+                            onPressed: () {
+                              setState(() {
+                                isTextFieldVisible = !isTextFieldVisible;
+                                searchQuery = '';
+                              });
+                            },
+                            icon: Icon(
+                              Icons.close,
+                              size: 20,
+                            ),
+                          )
                         else
                           IconButton(
                             onPressed: () {
@@ -484,25 +518,6 @@ class _MainPageState extends State<MainPage> {
                         ),
                         _bookmarkInfoButton(),
                         Spacer(),
-                        SizedBox(
-                          height: 26.64,
-                          width: 46.6,
-                          child: GestureDetector(
-                            onTap: _toggleBottomSheet,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(64.8),
-                                  color: Color(0xffEEEEEE)),
-                              child: Center(
-                                  child: Text(
-                                buttonText,
-                                style: TextStyle(
-                                    color: Color(0xff009D72),
-                                    fontWeight: FontWeight.bold),
-                              )),
-                            ),
-                          ),
-                        )
                       ],
                     ),
                     SizedBox(
@@ -514,111 +529,37 @@ class _MainPageState extends State<MainPage> {
                       color: Colors.black,
                     )
                   ],
-                ), //헤더
-                Expanded(
-                  child: FutureBuilder<List<ElementWidget>>(
-                    future: getFilteredElements(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return Center(child: CircularProgressIndicator()); // 로딩 표시
-                      }
+                ), // 헤더
+                if (isLoading) Center(child: CircularProgressIndicator()), // 로딩 상태일 때
 
-                      final filteredList = snapshot.data!;
-
-                      if (filteredList.isEmpty) {
-                        return Center(
-                          child: Container(
-                            margin: EdgeInsets.only(bottom: 110), // 원하는 만큼 위쪽 여백 조정
-                            child: SvgPicture.asset(
-                              'assets/icons/알림it_UOU_big.svg',
-                              width: 80.52,
-                              height: 110.74,
-                            ),
-                          ),
-                        );
-                      }
-                      return ListView.builder(
-                        itemCount: filteredList.length,
-                        itemBuilder: (context, index) {
-                          return filteredList[index];
-                        },
-                        padding: EdgeInsets.zero,
-                      );
-                    },
+                // 리스트 뷰 표시
+                if (!isLoading && elements.isNotEmpty)
+                  Expanded(
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
+                      controller: _scrollController,
+                      itemCount: elements.length,
+                      itemBuilder: (context, index) {
+                        return elements[index]; // ElementWidget 반환
+                      },
+                    ),
+                  ),
+                if (!isLoading && elements.isEmpty)
+                  Center(
+                    child: Container(
+                      margin: EdgeInsets.only(top: 250, bottom: 110), // 원하는 만큼 위쪽 여백 조정
+                      child: SvgPicture.asset(
+                        'assets/icons/알림it_UOU_big.svg',
+                        width: 80.52,
+                        height: 110.74,
+                      ),
+                    ),
                   )
-                ) //바디
               ],
             ),
           ),
         ),
-        if (_isBottomSheetVisible)
-          DraggableScrollableSheet(
-            initialChildSize: 0.35, // 초기 높이
-            minChildSize: 0.1, // 최소 높이
-            maxChildSize: 0.35, // 최대 높이
-            builder: (BuildContext context, ScrollController scrollController) {
-              return Container(
-                decoration: BoxDecoration(
-                    color: Color(0xffEFEFF1),
-                    borderRadius: BorderRadius.circular(30.0)),
-                padding: EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    GestureDetector(
-                      onVerticalDragUpdate: (details) {
-                        if (details.delta.dy > 0) {
-                          _toggleBottomSheet(); // 드래그 시 아래로 내리면 사라지게 함
-                        }
-                      },
-                      child: Center(
-                        child: Container(
-                          height: 5,
-                          width: 60,
-                          decoration: BoxDecoration(
-                              color: Color(0xffD7D7D7),
-                              borderRadius: BorderRadius.circular(30)),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        controller: scrollController,
-                        child: Column(
-                          children: [
-                            SizedBox(height: 20.0),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _ITICTButton(0, 'ICT 융합학부', 'ICT'),
-                                SizedBox(
-                                  width: 5,
-                                ),
-                                Column(
-                                  children: [
-                                    _ITICTButton(1, 'IT 융합학부', 'IT'),
-                                    if (selectedBSIndex == 1)
-                                      Column(
-                                        children: [
-                                          _ITAIButton(1, 'IT 융합전공', 'IT'),
-                                          _ITAIButton(2, 'AI 융합전공', 'AI')
-                                        ],
-                                      )
-                                  ],
-                                )
-                              ],
-                            )
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
       ],
     );
   }
 }
-

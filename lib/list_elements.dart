@@ -5,19 +5,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'main.dart';
 
 class ElementWidget extends StatefulWidget {
-  final bool important;
-  final String date;
+  final int id;
   final String title;
+  final String date;
   final String link;
+  final String type;
   final String major;
 
 
   ElementWidget({
-    required this.important,
-    required this.date,
     required this.title,
+    required this.date,
     required this.link,
-    required this.major
+    required this.type,
+    required this.major,
+    required this.id
   });
 
   @override
@@ -34,18 +36,18 @@ class _ElementWidgetState extends State<ElementWidget> {
   void initState() {
     super.initState();
     _loadBookmarkStatus();
-    _isBookmarkedFuture = BookmarkManager.isBookmarked(widget.date, widget.title);
+    _isBookmarkedFuture = BookmarkManager.isBookmarked(widget.id.toString());
   }
 
+  //북마크
   Future<void> _loadBookmarkStatus() async {
-    bool bookmarked = await BookmarkManager.isBookmarked(widget.date, widget.title);
+    bool bookmarked = await BookmarkManager.isBookmarked(widget.id.toString());
     setState(() {
       _isBookmarked = bookmarked;
     });
   }
-
   void _toggleBookmark() async {
-    await BookmarkManager.toggleBookmark(widget.date, widget.title);
+    await BookmarkManager.toggleBookmark(widget.id.toString());
     setState(() {
       _isBookmarked = !_isBookmarked; // 즉시 상태 업데이트
       final mainPageState = MainPage.of(context); // MainPage.of() 호출
@@ -80,7 +82,7 @@ class _ElementWidgetState extends State<ElementWidget> {
                       SizedBox(height: 15.0),
                       Row(
                         children: [
-                          if (widget.important)
+                          if (widget.type == 'NOTICE')
                             SizedBox(
                               height: 15,
                               width: 45,
@@ -141,7 +143,7 @@ class _ElementWidgetState extends State<ElementWidget> {
                 IconButton(
                   onPressed: _toggleBookmark,
                   icon: FutureBuilder<bool>(
-                    future: BookmarkManager.isBookmarked(widget.date, widget.title),
+                    future: BookmarkManager.isBookmarked(widget.id.toString()),
                     builder: (context, snapshot) {
                       bool isBookmarked = snapshot.data ?? false;
                       return SvgPicture.asset(
@@ -166,12 +168,13 @@ class _ElementWidgetState extends State<ElementWidget> {
   }
 }
 
+//북마크 관리 클래스
 class BookmarkManager {
   static const String bookmarkKey = 'bookmarks';
 
-  static Future<void> toggleBookmark(String date, String title) async {
+  static Future<void> toggleBookmark(String id) async {
     final prefs = await SharedPreferences.getInstance();
-    final key = '$date|$title';
+    final key = '$id';
     final bookmarks = prefs.getStringList(bookmarkKey) ?? [];
 
     if (bookmarks.contains(key)) {
@@ -182,14 +185,20 @@ class BookmarkManager {
     await prefs.setStringList(bookmarkKey, bookmarks);
   }
 
-  static Future<bool> isBookmarked(String date, String title) async {
+  static Future<bool> isBookmarked(String id) async {
     final prefs = await SharedPreferences.getInstance();
     final bookmarks = prefs.getStringList(bookmarkKey) ?? [];
-    return bookmarks.contains('$date|$title');
+    return bookmarks.contains('$id');
   }
 
    Future<List<String>> getBookmarks() async {
     final prefs = await SharedPreferences.getInstance();
+    print(prefs.getStringList(bookmarkKey));
     return prefs.getStringList(bookmarkKey) ?? [];
+  }
+
+  static Future<void> clearBookmarks() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(bookmarkKey);  // 저장된 모든 북마크 데이터 삭제
   }
 }
