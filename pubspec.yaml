@@ -81,6 +81,9 @@ flutter:
     - assets/icons/알림it_중요공지_O.svg
     - assets/icons/알림it_중요공지_X.svg
     - assets/icons/알림it_UOU_big.svg
+    - assets/icons/알림it_AI융합전공_logo.svg
+    - assets/icons/알림it_ICT융합학부_logo.svg
+    - assets/icons/알림it_IT융합학부_logo.svg
     # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

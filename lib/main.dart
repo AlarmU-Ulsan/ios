@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:notification_it/majorCategory.dart';
 import 'package:notification_it/splashScreen.dart';
-import 'package:notification_it/webView.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 
 import 'list_elements.dart';
 import 'api_service.dart';
@@ -68,7 +66,6 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   //북마크
   BookmarkManager bookmarkManager = BookmarkManager(); //북마크 관리
-
 
   int pageNum = 0;
   int categoryNum = 2;
@@ -265,14 +262,16 @@ class _MainPageState extends State<MainPage> {
     }).toList();
 
     setState(() {
-      if (selectedIndex==2) {
+      if (selectedIndex == 2) {
         elements = fetchedElements; // 새로 불러온 데이터로 업데이트
       }
     });
   }
+
   Future<List<Notice>> loadBookmarkedItems(List<String> bookmarkedItems) async {
     final apiService = ApiService(
-        url: "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
+        url:
+            "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
 
     List<Notice> allNotices = await apiService.fetchNotices(); // 전체 데이터를 불러옴
 
@@ -281,6 +280,7 @@ class _MainPageState extends State<MainPage> {
       return bookmarkedItems.contains('${notice.id}');
     }).toList();
   }
+
   Future<void> loadData() async {
     try {
       final ApiService apiServiceAll = ApiService(
@@ -288,7 +288,7 @@ class _MainPageState extends State<MainPage> {
               "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=0");
       final ApiService apiServiceImportant = ApiService(
           url:
-          "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=0");
+              "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=0");
       List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
       List<Notice> notices;
 
@@ -326,8 +326,6 @@ class _MainPageState extends State<MainPage> {
         elements = fetchedElements; // 새로운 데이터를 elements에 할당
         isLoading = false; // 로딩 완료
       });
-
-
     } catch (e) {
       setState(() {
         isLoading = false; // 오류 발생 시 로딩 종료
@@ -335,6 +333,7 @@ class _MainPageState extends State<MainPage> {
       print("데이터 로드 실패: $e");
     }
   }
+
   Future<void> loadNewData() async {
     setState(() {
       pageNum++;
@@ -342,10 +341,10 @@ class _MainPageState extends State<MainPage> {
     try {
       final ApiService apiServiceAll = ApiService(
           url:
-          "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
+              "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
       final ApiService apiServiceImportant = ApiService(
           url:
-          "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
+              "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
       List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
       List<Notice> notices;
 
@@ -383,8 +382,6 @@ class _MainPageState extends State<MainPage> {
         elements.addAll(fetchedElements); // 새로운 데이터를 elements에 할당
         isLoading = false; // 로딩 완료
       });
-
-
     } catch (e) {
       setState(() {
         isLoading = false; // 오류 발생 시 로딩 종료
@@ -395,11 +392,14 @@ class _MainPageState extends State<MainPage> {
 
   ScrollController _scrollController = ScrollController();
   void _scrollListener() {
-      if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
-        // 스크롤 끝에 도달하면 추가 데이터를 로드
-        loadNewData(); // 필요한 filterType을 넣어 호출
-        }
+    if (_scrollController.position.pixels ==
+        _scrollController.position.maxScrollExtent) {
+      // 스크롤 끝에 도달하면 추가 데이터를 로드
+      loadNewData(); // 필요한 filterType을 넣어 호출
+    }
   }
+
+  final String category = 'ICT융합학부';
 
   @override
   void initState() {
@@ -434,6 +434,28 @@ class _MainPageState extends State<MainPage> {
                           width: 32,
                           height: 16.33,
                         ),
+                        SizedBox(
+                          width: 5,
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => CategoryPage()));
+                          },
+                          child: Container(
+                              child: Row(
+                            children: [
+                              Text(category),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                color: Colors.grey,
+                                size: 15,
+                              )
+                            ],
+                          )),
+                        ),
                         Spacer(),
                         AnimatedContainer(
                           duration: Duration(milliseconds: 400), // 애니메이션 지속 시간
@@ -441,37 +463,40 @@ class _MainPageState extends State<MainPage> {
                           curve: Curves.easeInOut, // 부드러운 애니메이션 효과
                           child: isTextFieldVisible
                               ? SizedBox(
-                            height: 29,
-                            child: TextField(
-                              controller: _controller,
-                              style: TextStyle(
-                                  fontSize: 15.12,
-                                  fontWeight: FontWeight.bold),
-                              onChanged: (val) {
-                                setState(() {
-                                  searchQuery = val; // 🔹 검색어 업데이트
-                                });
-                              },
-                              decoration: InputDecoration(
-                                border: OutlineInputBorder(
-                                    borderSide:
-                                    BorderSide(color: Color(0xffDEDEDE)),
-                                    borderRadius: BorderRadius.circular(67)),
-                                contentPadding:
-                                EdgeInsets.symmetric(horizontal: 15),
-                                filled: true,
-                                fillColor: Color(0xffDEDEDE),
-                                enabledBorder: OutlineInputBorder(
-                                    borderSide:
-                                    BorderSide(color: Color(0xffDEDEDE)),
-                                    borderRadius: BorderRadius.circular(67)),
-                                focusedBorder: OutlineInputBorder(
-                                    borderSide:
-                                    BorderSide(color: Color(0xffDEDEDE)),
-                                    borderRadius: BorderRadius.circular(67)),
-                              ),
-                            ),
-                          )
+                                  height: 29,
+                                  child: TextField(
+                                    controller: _controller,
+                                    style: TextStyle(
+                                        fontSize: 15.12,
+                                        fontWeight: FontWeight.bold),
+                                    onChanged: (val) {
+                                      setState(() {
+                                        searchQuery = val; // 🔹 검색어 업데이트
+                                      });
+                                    },
+                                    decoration: InputDecoration(
+                                      border: OutlineInputBorder(
+                                          borderSide: BorderSide(
+                                              color: Color(0xffDEDEDE)),
+                                          borderRadius:
+                                              BorderRadius.circular(67)),
+                                      contentPadding:
+                                          EdgeInsets.symmetric(horizontal: 15),
+                                      filled: true,
+                                      fillColor: Color(0xffDEDEDE),
+                                      enabledBorder: OutlineInputBorder(
+                                          borderSide: BorderSide(
+                                              color: Color(0xffDEDEDE)),
+                                          borderRadius:
+                                              BorderRadius.circular(67)),
+                                      focusedBorder: OutlineInputBorder(
+                                          borderSide: BorderSide(
+                                              color: Color(0xffDEDEDE)),
+                                          borderRadius:
+                                              BorderRadius.circular(67)),
+                                    ),
+                                  ),
+                                )
                               : SizedBox(), // 입력창이 없을 때 빈 공간 처리
                         ),
                         if (!isTextFieldVisible) _bellIcon(),
@@ -530,7 +555,8 @@ class _MainPageState extends State<MainPage> {
                     )
                   ],
                 ), // 헤더
-                if (isLoading) Center(child: CircularProgressIndicator()), // 로딩 상태일 때
+                if (isLoading)
+                  Center(child: CircularProgressIndicator()), // 로딩 상태일 때
 
                 // 리스트 뷰 표시
                 if (!isLoading && elements.isNotEmpty)
@@ -547,7 +573,8 @@ class _MainPageState extends State<MainPage> {
                 if (!isLoading && elements.isEmpty)
                   Center(
                     child: Container(
-                      margin: EdgeInsets.only(top: 250, bottom: 110), // 원하는 만큼 위쪽 여백 조정
+                      margin: EdgeInsets.only(
+                          top: 250, bottom: 110), // 원하는 만큼 위쪽 여백 조정
                       child: SvgPicture.asset(
                         'assets/icons/알림it_UOU_big.svg',
                         width: 80.52,
