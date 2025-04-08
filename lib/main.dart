@@ -64,9 +64,7 @@ class Notification_IT extends StatelessWidget {
 }
 
 class MainPage extends StatefulWidget {
-  const MainPage({super.key, required this.title});
-
-  final String title;
+  const MainPage({super.key});
 
   @override
   State<MainPage> createState() => _MainPageState();
