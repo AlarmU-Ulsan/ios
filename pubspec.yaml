@@ -42,6 +42,8 @@ dependencies:
   timezone: ^0.10.0
   shared_preferences: ^2.5.2
   http: ^1.3.0
+  firebase_messaging: ^15.2.4
+  firebase_core: ^3.12.1
 
 dev_dependencies:
   flutter_test:
@@ -84,6 +86,8 @@ flutter:
     - assets/icons/알림it_AI융합전공_logo.svg
     - assets/icons/알림it_ICT융합학부_logo.svg
     - assets/icons/알림it_IT융합학부_logo.svg
+    - assets/icons/알림it_checkButton_O.svg
+    - assets/icons/알림it_checkButton_X.svg
     # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

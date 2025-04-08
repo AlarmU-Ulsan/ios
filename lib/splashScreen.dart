@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:notification_it/init_selecet_page.dart';
 
 import 'main.dart'; // MainPage가 정의된 파일
 
@@ -20,7 +21,7 @@ class _SplashScreenState extends State<SplashScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => MainPage(title: '알림it'),
+            builder: (context) => InitSelectPage1(),
           ),
         );
       });

@@ -1,8 +1,15 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:notification_it/alram.dart';
 import 'package:notification_it/majorCategory.dart';
 import 'package:notification_it/splashScreen.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 import 'list_elements.dart';
 import 'api_service.dart';
@@ -22,6 +29,11 @@ void requestPermissions() {
 } //알림 권한 요청
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform, // 추가
+  );
+
   WidgetsFlutterBinding.ensureInitialized(); //로컬 푸시 알림 초기화
 
   final DarwinInitializationSettings iosSettings =
@@ -68,68 +80,25 @@ class _MainPageState extends State<MainPage> {
   BookmarkManager bookmarkManager = BookmarkManager(); //북마크 관리
 
   int pageNum = 0;
-  int categoryNum = 2;
+  String type = '전체';
+  String selectedMajor = 'ICT융합학부';
   List<ElementWidget> elements = [];
-  Future<void> fetchInitialData() async {
-    List<ElementWidget> result = await getFilteredElements(); // 비동기 데이터 로드
-    setState(() {
-      elements = result;
-    });
-  } //데이터 불러오기
 
-  Future<List<ElementWidget>> getFilteredElements() async {
-    final ApiService apiService = ApiService(
-        url:
-            "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum"); // API URL 입력
-    List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
-
-    try {
-      List<Notice> notices = await apiService.fetchNotices();
-
-      // Notice 데이터를 ElementWidget 리스트로 변환
-      List<ElementWidget> elements = notices.map((notice) {
-        return ElementWidget(
-          id: notice.id,
-          title: notice.title,
-          date: notice.date,
-          link: notice.link,
-          type: notice.type, // 필요 시 수정
-          major: notice.major,
-        );
-      }).toList();
-
-      // 필터링 적용
-      return elements.where((element) {
-        bool isBookmarked =
-            bookmarkedItems.contains('${element.date}|${element.title}');
-
-        if (selectedIndex == 1 && element.type != "NOTICE")
-          return false; // "중요" 공지만 보기
-        if (selectedIndex == 2 && !isBookmarked) return false; // 북마크된 항목만 보기
-
-        return element.title.contains(searchQuery); // 검색 필터 적용
-      }).toList();
-    } catch (e) {
-      print("데이터 로드 실패: $e");
-      return []; // 오류 발생 시 빈 리스트 반환
-    }
-  } //필터링 후 위젯으로 변환
-
-  //스크롤에 대한 동작
-  bool isLoading = false; // 데이터를 로딩 중인지 확인하는 변수
-
-  //푸시알림
+  //알림
   Widget _bellIcon() {
     bool isSelected_bell = selected_bell;
     return GestureDetector(
       onTap: () {
-        setState(() {
-          if (!selected_bell)
-            showNotification('알림이 설정되었습니다');
-          else
-            showNotification('알림이 해제되었습니다');
-          selected_bell = !selected_bell;
-        });
+        Navigator.push(context, MaterialPageRoute(builder: (context)=>AlarmPage()));
+        // setState(() {
+        //   if (!selected_bell) {
+        //     showNotification('알림이 설정되었습니다');
+        //   } else {
+        //     showNotification('알림이 해제되었습니다');
+        //   }
+        //   selected_bell = !selected_bell;
+        // });
+        // _toggleNotification();
       },
       child: isSelected_bell
           ? SvgPicture.asset(
@@ -140,8 +109,61 @@ class _MainPageState extends State<MainPage> {
             ),
     );
   }
+  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  Future<void> _initializeFirebase() async {
+    // Firebase 초기화
+    await Firebase.initializeApp();
+    print("Firebase 초기화 완료");
 
+    // iOS에서 권한 요청
+    if (Platform.isIOS) {
+      await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    }
+
+    // ✅ APNS 토큰 가져오기 (iOS에서만)
+    String? apnsToken = await _messaging.getAPNSToken();
+    print("🔹 APNS Token: $apnsToken");
+
+    // APNS 토큰이 null이면 알림을 사용할 수 없음
+    if (apnsToken == null) {
+      print("⚠️ APNS 토큰을 가져올 수 없습니다.");
+      return;
+    }
+
+    // ✅ FCM 토큰 받기
+    fcmToken = await _messaging.getToken();
+    print("🔹 FCM Token: $fcmToken");
+  }
+  void setupMessageListener() {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print("📩 포그라운드 메시지 수신: ${message.notification?.title} - ${message.notification?.body}");
+    });
+  } //포그라운드 알림 리스너 등록
+  Future<void> _toggleNotification() async {
+    if (fcmToken == null) {
+      print("⚠️ FCM 토큰이 존재하지 않습니다.");
+      return;
+    }
+
+    final ApiService apiService = ApiService(url: "http://localhost:8080/fcm/fcm_token");
+
+    // ✅ API 호출 (POST 요청)
+    await apiService.postFCMToken(fcmToken!, selectedMajor);
+
+    // ✅ UI 업데이트는 setState() 안에서 처리
+    setState(() {
+      selected_bell = !selected_bell;
+    });
+
+    // ✅ 알림 표시
+    showNotification(selected_bell ? '알림이 설정되었습니다' : '알림이 해제되었습니다');
+  }
   bool selected_bell = false; //알림 on/off
+  String? fcmToken;
   Future<void> showNotification(String text) async {
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
@@ -161,14 +183,53 @@ class _MainPageState extends State<MainPage> {
       text,
       notificationDetails,
     );
-  } //알림
+  }
+
 
   //검색창
   bool isTextFieldVisible = false;
-  TextEditingController _controller = TextEditingController();
+  final TextEditingController _controller = TextEditingController();
   String searchQuery = ''; //검색어 저장 변수
+  void _onSearchChanged(String query) {
+    if (query.length < 2) return; // 너무 짧은 검색어는 요청하지 않음
+    _fetchSearchResults(query);
+  }
+  Future<void> _fetchSearchResults(String keyword) async {
+    if (isLoading || !mounted) return;
+    setState(() {
+      isLoading = true;
+    });
+    try {
+      final ApiService apiServiceSearch = ApiService(url:
+      "https://alarm-it.ulsan.ac.kr:58080/search?keyWord=$keyword&major=$selectedMajor&page=0");
+      List<Notice> notices;
+
+      notices = await apiServiceSearch.fetchNotices();
+      List<ElementWidget> fetchedElements = notices.map((notice) {
+        return ElementWidget(
+          id: notice.id,
+          title: notice.title,
+          date: notice.date,
+          link: notice.link,
+          type: notice.type,
+          major: notice.major,
+        );
+      }).toList();
+
+      setState(() {
+        elements = fetchedElements; // 새로운 데이터를 elements에 할당
+        isLoading = false; // 로딩 완료
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false; // 오류 발생 시 로딩 종료
+      });
+      print('데이터 로드 실패: $e');
+    }
+  }
 
   //필터 버튼
+
   Widget _allInfoButton() {
     bool isSelected = selectedIndex == 0;
 
@@ -178,9 +239,13 @@ class _MainPageState extends State<MainPage> {
       child: GestureDetector(
         onTap: () {
           setState(() {
+            elements = [];
             selectedIndex = 0;
+            pageNum = 0;
+            type = '전체';
             loadData();
             print('all');
+            print('pageNum = $pageNum');
           });
         },
         child: SvgPicture.asset(
@@ -191,7 +256,6 @@ class _MainPageState extends State<MainPage> {
       ),
     );
   }
-
   Widget _importantInfoButton() {
     bool isSelected = selectedIndex == 1;
 
@@ -202,8 +266,12 @@ class _MainPageState extends State<MainPage> {
         onTap: () {
           setState(() {
             selectedIndex = 1;
+            elements = [];
+            pageNum = 0;
+            type = '중요 공지';
             loadData();
             print('important');
+            print('pageNum = $pageNum');
           });
         },
         child: SvgPicture.asset(
@@ -214,7 +282,6 @@ class _MainPageState extends State<MainPage> {
       ),
     );
   }
-
   Widget _bookmarkInfoButton() {
     bool isSelected = selectedIndex == 2;
 
@@ -225,8 +292,11 @@ class _MainPageState extends State<MainPage> {
         onTap: () {
           setState(() {
             selectedIndex = 2;
+            pageNum = 0;
+            elements = [];
             loadData();
             print('bookmark');
+            print('pageNum = $pageNum');
           });
         },
         child: SvgPicture.asset(
@@ -240,10 +310,11 @@ class _MainPageState extends State<MainPage> {
 
   //필터 값
   int selectedIndex = 0; // 0: 전체, 1: 중요 공지, 2: 북마크
-  int selectedBSIndex = 0; // 0: ICT, 1: IT
-  int selectedBSIndex2 = 0; // 0: IT, 1: AI
 
   //새로 시작
+
+  bool isLoading = false; // 데이터를 로딩 중인지 확인하는 변수
+
   Future<void> updateElements() async {
     List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
     // 북마크된 항목을 새로 불러오기
@@ -271,7 +342,7 @@ class _MainPageState extends State<MainPage> {
   Future<List<Notice>> loadBookmarkedItems(List<String> bookmarkedItems) async {
     final apiService = ApiService(
         url:
-            "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
+        "https://alarm-it.ulsan.ac.kr:58080/notice?type=전체&page=$pageNum&major=$selectedMajor");
 
     List<Notice> allNotices = await apiService.fetchNotices(); // 전체 데이터를 불러옴
 
@@ -282,13 +353,18 @@ class _MainPageState extends State<MainPage> {
   }
 
   Future<void> loadData() async {
+    if (isLoading || !mounted) return;  // 이미 로딩 중이면 실행하지 않음
+
+    setState(() {
+      isLoading = true;
+    });
     try {
       final ApiService apiServiceAll = ApiService(
           url:
-              "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=0");
+          "https://alarm-it.ulsan.ac.kr:58080/notice?type=전체&page=0&major=$selectedMajor");
       final ApiService apiServiceImportant = ApiService(
           url:
-              "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=0");
+          "https://alarm-it.ulsan.ac.kr:58080/notice?type=중요 공지&page=0&major=$selectedMajor");
       List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
       List<Notice> notices;
 
@@ -296,16 +372,11 @@ class _MainPageState extends State<MainPage> {
         // 전체 데이터를 가져오는 경우, 새로 API 호출하지 않고 기존 elements 그대로 사용
         notices = await apiServiceAll.fetchNotices();
       } else if (selectedIndex == 1) {
-        print(selectedIndex);
         // 중요 데이터를 가져오는 경우, 새로 API 호출 후 중요 필터링
         notices = await apiServiceImportant.fetchNotices();
-        notices = notices
-            .where((notice) => notice.type == "NOTICE")
-            .toList(); // 중요 공지만 필터링
       } else if (selectedIndex == 2) {
         // 북마크된 데이터를 가져오는 경우
         notices = await loadBookmarkedItems(bookmarkedItems);
-        // selectedIndex == 2;
       } else {
         notices = [];
       }
@@ -335,16 +406,23 @@ class _MainPageState extends State<MainPage> {
   }
 
   Future<void> loadNewData() async {
+    if (isLoading || !mounted) return;  // 이미 로딩 중이면 실행하지 않음
+
     setState(() {
-      pageNum++;
+      isLoading = true;
+      if(selectedIndex==0){
+      pageNum++;}
     });
+
     try {
+      // 현재 스크롤 위치 저장
+
       final ApiService apiServiceAll = ApiService(
           url:
-              "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
+          "https://alarm-it.ulsan.ac.kr:58080/notice?type=전체&page=$pageNum&major=$selectedMajor");
       final ApiService apiServiceImportant = ApiService(
           url:
-              "https://alarm-it.ulsan.ac.kr:58080/notice?category=$categoryNum&page=$pageNum");
+          "https://alarm-it.ulsan.ac.kr:58080/notice?type=중요 공지&page=$pageNum&major=$selectedMajor");
       List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
       List<Notice> notices;
 
@@ -352,36 +430,35 @@ class _MainPageState extends State<MainPage> {
         // 전체 데이터를 가져오는 경우, 새로 API 호출하지 않고 기존 elements 그대로 사용
         notices = await apiServiceAll.fetchNotices();
       } else if (selectedIndex == 1) {
-        print(selectedIndex);
         // 중요 데이터를 가져오는 경우, 새로 API 호출 후 중요 필터링
         notices = await apiServiceImportant.fetchNotices();
-        notices = notices
-            .where((notice) => notice.type == "NOTICE")
-            .toList(); // 중요 공지만 필터링
       } else if (selectedIndex == 2) {
         // 북마크된 데이터를 가져오는 경우
         notices = await loadBookmarkedItems(bookmarkedItems);
-        // selectedIndex == 2;
       } else {
         notices = [];
       }
 
+      Set<int> existingIds = elements.map((e) => e.id).toSet();
       // Notice 데이터를 ElementWidget 리스트로 변환
-      List<ElementWidget> fetchedElements = notices.map((notice) {
-        return ElementWidget(
-          id: notice.id,
-          title: notice.title,
-          date: notice.date,
-          link: notice.link,
-          type: notice.type,
-          major: notice.major,
-        );
-      }).toList();
+      List<ElementWidget> fetchedElements = notices
+          .where((notice) => !existingIds.contains(notice.id)) // 중복 필터링
+          .map((notice) => ElementWidget(
+        id: notice.id,
+        title: notice.title,
+        date: notice.date,
+        link: notice.link,
+        type: notice.type,
+        major: notice.major,
+      ))
+          .toList();
+
 
       setState(() {
         elements.addAll(fetchedElements); // 새로운 데이터를 elements에 할당
         isLoading = false; // 로딩 완료
       });
+
     } catch (e) {
       setState(() {
         isLoading = false; // 오류 발생 시 로딩 종료
@@ -390,21 +467,52 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-  ScrollController _scrollController = ScrollController();
-  void _scrollListener() {
+
+
+  final ScrollController _scrollController = ScrollController();
+  void _scrollListener() async {
     if (_scrollController.position.pixels ==
         _scrollController.position.maxScrollExtent) {
-      // 스크롤 끝에 도달하면 추가 데이터를 로드
-      loadNewData(); // 필요한 filterType을 넣어 호출
+      if (!isLoading) {
+        double currentScrollPosition = _scrollController.position.pixels;
+
+        await loadNewData();
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(currentScrollPosition - 5);
+          }
+        });
+      }
     }
   }
 
-  final String category = 'ICT융합학부';
+  //페이지 이동
+  void _navigateAndGetMajor() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => CategoryPage()),
+    );
+
+    if (result != null) {
+      setState(() {
+        selectedMajor = result;
+        loadData();//데이터 초기
+        _scrollController.animateTo(
+          0.0,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );//스크롤 최상단으로
+      });
+    }
+  }
+
 
   @override
   void initState() {
     super.initState();
-    fetchInitialData();
+    _initializeFirebase();
+    loadData();
     _scrollController.addListener(_scrollListener);
   }
 
@@ -427,6 +535,9 @@ class _MainPageState extends State<MainPage> {
               children: [
                 Column(
                   children: [
+                    SizedBox(
+                      height: 10,
+                    ),
                     Row(
                       children: [
                         SvgPicture.asset(
@@ -437,17 +548,12 @@ class _MainPageState extends State<MainPage> {
                         SizedBox(
                           width: 5,
                         ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (context) => CategoryPage()));
-                          },
+                        if (!isTextFieldVisible)GestureDetector(
+                          onTap: () {_navigateAndGetMajor();},
                           child: Container(
                               child: Row(
                             children: [
-                              Text(category),
+                              Text(selectedMajor),
                               Icon(
                                 Icons.arrow_forward_ios_rounded,
                                 color: Colors.grey,
@@ -459,7 +565,7 @@ class _MainPageState extends State<MainPage> {
                         Spacer(),
                         AnimatedContainer(
                           duration: Duration(milliseconds: 400), // 애니메이션 지속 시간
-                          width: isTextFieldVisible ? 200 : 0, // 입력창 너비 조절
+                          width: isTextFieldVisible ? 220 : 0, // 입력창 너비 조절
                           curve: Curves.easeInOut, // 부드러운 애니메이션 효과
                           child: isTextFieldVisible
                               ? SizedBox(
@@ -471,7 +577,8 @@ class _MainPageState extends State<MainPage> {
                                         fontWeight: FontWeight.bold),
                                     onChanged: (val) {
                                       setState(() {
-                                        searchQuery = val; // 🔹 검색어 업데이트
+                                        searchQuery = val;// 🔹 검색어 업데이트
+                                        _onSearchChanged(val);
                                       });
                                     },
                                     decoration: InputDecoration(
@@ -507,6 +614,7 @@ class _MainPageState extends State<MainPage> {
                               setState(() {
                                 isTextFieldVisible = !isTextFieldVisible;
                                 searchQuery = '';
+                                loadData();
                               });
                             },
                             icon: Icon(
@@ -529,7 +637,7 @@ class _MainPageState extends State<MainPage> {
                       ],
                     ),
                     SizedBox(
-                      height: 30,
+                      height: 20,
                     ),
                     Row(
                       children: [
@@ -556,7 +664,7 @@ class _MainPageState extends State<MainPage> {
                   ],
                 ), // 헤더
                 if (isLoading)
-                  Center(child: CircularProgressIndicator()), // 로딩 상태일 때
+                  Center(child: null,), // 로딩 상태일 때
 
                 // 리스트 뷰 표시
                 if (!isLoading && elements.isNotEmpty)

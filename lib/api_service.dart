@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class ApiService {
   final String url;
@@ -22,6 +23,27 @@ class ApiService {
         final List<dynamic> contentList = jsonData["result"]["content"];
 
         return contentList.map((item) => Notice.fromJson(item)).toList();
+      } else {
+        throw Exception("HTTP 오류: ${response.statusCode}");
+      }
+    } catch (e) {
+      throw Exception("API 오류: $e");
+    }
+  }
+  Future<Map<String, dynamic>> postFCMToken(String token, String major) async {
+    try {
+      // 동적으로 URL을 생성
+      String fullUrl = "$url?token=$token&major=$major";
+
+      final response = await http.post(
+        Uri.parse(fullUrl),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return json.decode(utf8.decode(response.bodyBytes)); // UTF-8 디코딩 적용
       } else {
         throw Exception("HTTP 오류: ${response.statusCode}");
       }

@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 class CategoryPage extends StatefulWidget {
+
   @override
   _CategoryPageState createState() => _CategoryPageState();
 }
 
 class _CategoryPageState extends State<CategoryPage> {
+  String selectedMajor = 'ICT융합학부';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -18,7 +21,7 @@ class _CategoryPageState extends State<CategoryPage> {
           ),
           GestureDetector(
             onTap: () {
-              Navigator.pop(context);
+              Navigator.pop(context, selectedMajor);
             },
             child: Row(children: [
               SizedBox(
@@ -57,7 +60,11 @@ class _CategoryPageState extends State<CategoryPage> {
                     margin: EdgeInsets.fromLTRB(35, 15, 15, 5),
                     child: GestureDetector(
                                     onTap: () {
+                                      setState(() {
+                                        selectedMajor = 'ICT융합학부';
+                                      });
                                       print('ICT융합학부 선택');
+                                      Navigator.pop(context, selectedMajor);
                                     },
                                     child: Row(children: [
                     SvgPicture.asset('assets/icons/알림it_ICT융합학부_logo.svg'),
@@ -75,6 +82,10 @@ class _CategoryPageState extends State<CategoryPage> {
                     margin: EdgeInsets.fromLTRB(30, 15, 15, 5),
                     child: GestureDetector(
                                     onTap: () {
+                                      setState(() {
+                                        selectedMajor = 'AI융합전공';
+                                      });
+                                      Navigator.pop(context, selectedMajor);
                     print('AI융합전공 선택');
                                     },
                                     child: Row(children: [
@@ -95,7 +106,11 @@ class _CategoryPageState extends State<CategoryPage> {
                     margin: EdgeInsets.fromLTRB(30, 15, 15, 5),
                     child: GestureDetector(
                                     onTap: () {
+                                      setState(() {
+                                        selectedMajor = 'IT융합전공';
+                                      });
                                       print('IT융합전공 선택');
+                                      Navigator.pop(context, selectedMajor);
                                     },
                                     child: Row(children: [
                     SvgPicture.asset('assets/icons/알림it_IT융합학부_logo.svg'),
