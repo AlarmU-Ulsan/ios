@@ -27,7 +27,6 @@ class ElementWidget extends StatefulWidget {
 }
 
 class _ElementWidgetState extends State<ElementWidget> {
-  MainPage mainPage = MainPage();
   BookmarkManager bookmarkManager = BookmarkManager();
   bool _isBookmarked = false;
   late Future<bool> _isBookmarkedFuture;

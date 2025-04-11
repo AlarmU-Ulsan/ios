@@ -64,7 +64,10 @@ class Notification_IT extends StatelessWidget {
 }
 
 class MainPage extends StatefulWidget {
-  const MainPage({super.key});
+  const MainPage({super.key, required this.selectedMajor, this.selectedAlram=''});
+
+  final String selectedMajor;
+  final String selectedAlram;
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -80,6 +83,7 @@ class _MainPageState extends State<MainPage> {
   int pageNum = 0;
   String type = '전체';
   String selectedMajor = 'ICT융합학부';
+  String selectedAlram = '';
   List<ElementWidget> elements = [];
 
   //알림
@@ -88,17 +92,8 @@ class _MainPageState extends State<MainPage> {
     return GestureDetector(
       onTap: () {
         Navigator.push(context, MaterialPageRoute(builder: (context)=>AlarmPage()));
-        // setState(() {
-        //   if (!selected_bell) {
-        //     showNotification('알림이 설정되었습니다');
-        //   } else {
-        //     showNotification('알림이 해제되었습니다');
-        //   }
-        //   selected_bell = !selected_bell;
-        // });
-        // _toggleNotification();
       },
-      child: isSelected_bell
+      child: (selectedAlram != '')
           ? SvgPicture.asset(
               'assets/icons/알림it_bell_O.svg',
             )
@@ -489,7 +484,7 @@ class _MainPageState extends State<MainPage> {
   void _navigateAndGetMajor() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => CategoryPage()),
+      MaterialPageRoute(builder: (context) => CategoryPage(selectedMajor: selectedMajor,)),
     );
 
     if (result != null) {
@@ -512,6 +507,8 @@ class _MainPageState extends State<MainPage> {
     _initializeFirebase();
     loadData();
     _scrollController.addListener(_scrollListener);
+    selectedMajor = widget.selectedMajor;
+    selectedAlram = widget.selectedAlram;
   }
 
   @override

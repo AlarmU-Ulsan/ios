@@ -266,7 +266,7 @@ class _InitSelectPage2State extends State<InitSelectPage2>{
                   Column(
                     children: [
                       TextButton(onPressed: (){
-                        Navigator.push(context, MaterialPageRoute(builder: (context)=>MainPage()));
+                        Navigator.push(context, MaterialPageRoute(builder: (context)=>MainPage(selectedMajor: widget.major,selectedAlram: _isSelected,)));
                       }, child: Text('완료', style: TextStyle(fontWeight:FontWeight.bold,color: Color(0xff009D72)),)),
                       SizedBox(height: 40,)
                     ],
