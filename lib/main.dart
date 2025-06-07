@@ -82,8 +82,8 @@ class _MainPageState extends State<MainPage> {
 
   int pageNum = 0;
   String type = '전체';
-  String selectedMajor = 'ICT융합학부';
-  String selectedAlram = '';
+  late String selectedMajor;
+  late String selectedAlram;
   List<ElementWidget> elements = [];
 
   //알림
@@ -180,7 +180,7 @@ class _MainPageState extends State<MainPage> {
 
 
   //검색창
-  bool isTextFieldVisible = false;
+  bool isTextFieldVisible = true;
   final TextEditingController _controller = TextEditingController();
   String searchQuery = ''; //검색어 저장 변수
   void _onSearchChanged(String query) {
@@ -505,10 +505,10 @@ class _MainPageState extends State<MainPage> {
   void initState() {
     super.initState();
     _initializeFirebase();
-    loadData();
-    _scrollController.addListener(_scrollListener);
     selectedMajor = widget.selectedMajor;
     selectedAlram = widget.selectedAlram;
+    loadData();
+    _scrollController.addListener(_scrollListener);
   }
 
   @override
@@ -543,66 +543,23 @@ class _MainPageState extends State<MainPage> {
                         SizedBox(
                           width: 5,
                         ),
-                        if (!isTextFieldVisible)GestureDetector(
+                        GestureDetector(
                           onTap: () {_navigateAndGetMajor();},
                           child: Container(
                               child: Row(
-                            children: [
-                              Text(selectedMajor),
-                              Icon(
-                                Icons.arrow_forward_ios_rounded,
-                                color: Colors.grey,
-                                size: 15,
-                              )
-                            ],
-                          )),
+                                children: [
+                                  Text(selectedMajor),
+                                  Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    color: Colors.grey,
+                                    size: 15,
+                                  )
+                                ],
+                              )),
                         ),
                         Spacer(),
-                        AnimatedContainer(
-                          duration: Duration(milliseconds: 400), // 애니메이션 지속 시간
-                          width: isTextFieldVisible ? 220 : 0, // 입력창 너비 조절
-                          curve: Curves.easeInOut, // 부드러운 애니메이션 효과
-                          child: isTextFieldVisible
-                              ? SizedBox(
-                                  height: 29,
-                                  child: TextField(
-                                    controller: _controller,
-                                    style: TextStyle(
-                                        fontSize: 15.12,
-                                        fontWeight: FontWeight.bold),
-                                    onChanged: (val) {
-                                      setState(() {
-                                        searchQuery = val;// 🔹 검색어 업데이트
-                                        _onSearchChanged(val);
-                                      });
-                                    },
-                                    decoration: InputDecoration(
-                                      border: OutlineInputBorder(
-                                          borderSide: BorderSide(
-                                              color: Color(0xffDEDEDE)),
-                                          borderRadius:
-                                              BorderRadius.circular(67)),
-                                      contentPadding:
-                                          EdgeInsets.symmetric(horizontal: 15),
-                                      filled: true,
-                                      fillColor: Color(0xffDEDEDE),
-                                      enabledBorder: OutlineInputBorder(
-                                          borderSide: BorderSide(
-                                              color: Color(0xffDEDEDE)),
-                                          borderRadius:
-                                              BorderRadius.circular(67)),
-                                      focusedBorder: OutlineInputBorder(
-                                          borderSide: BorderSide(
-                                              color: Color(0xffDEDEDE)),
-                                          borderRadius:
-                                              BorderRadius.circular(67)),
-                                    ),
-                                  ),
-                                )
-                              : SizedBox(), // 입력창이 없을 때 빈 공간 처리
-                        ),
-                        if (!isTextFieldVisible) _bellIcon(),
-                        if (isTextFieldVisible)
+                        _bellIcon(),
+                        if (!isTextFieldVisible)
                           IconButton(
                             padding: EdgeInsets.zero,
                             onPressed: () {
@@ -634,28 +591,67 @@ class _MainPageState extends State<MainPage> {
                     SizedBox(
                       height: 20,
                     ),
-                    Row(
-                      children: [
-                        _allInfoButton(),
-                        SizedBox(
-                          width: 8,
-                        ),
-                        _importantInfoButton(),
-                        SizedBox(
-                          width: 8,
-                        ),
-                        _bookmarkInfoButton(),
-                        Spacer(),
-                      ],
-                    ),
+                    if (isTextFieldVisible)
+                      Row(
+                        children: [
+                          _allInfoButton(),
+                          SizedBox(
+                            width: 8,
+                          ),
+                          _importantInfoButton(),
+                          SizedBox(
+                            width: 8,
+                          ),
+                          _bookmarkInfoButton(),
+                          Spacer(),
+                        ],
+                      )
+                    else
+                      Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _controller,
+                                  style: TextStyle(
+                                      fontSize: 15.12,
+                                      fontWeight: FontWeight.bold),
+                                  onChanged: (val) {
+                                    setState(() {
+                                      searchQuery = val;// 🔹 검색어 업데이트
+                                      _onSearchChanged(val);
+                                    });
+                                  },
+                                  decoration: InputDecoration(
+                                      hintText: "검색어를 입력해주세요",
+                                      hintStyle: TextStyle(color: Color(0xffA3A3A3)),
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.only(bottom: 5),
+                                      focusedBorder: InputBorder.none,
+                                      enabledBorder: InputBorder.none
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                  padding:EdgeInsets.fromLTRB(0, 0, 15, 5),
+                                  child: GestureDetector(
+                                      onTap: (){},
+                                      child: Text('검색', style: TextStyle(color: Color(0xff009D72)),)))
+                            ],
+                          ),
+                          Container(height: 2, color: Color(0xff009D72),),
+                        ],
+                      ),
                     SizedBox(
                       height: 23,
                     ),
-                    Container(
-                      height: 1,
-                      width: double.infinity,
-                      color: Colors.black,
-                    )
+                    if(isTextFieldVisible)
+                      Container(
+                        height: 1,
+                        width: double.infinity,
+                        color: Colors.black,
+                      )
                   ],
                 ), // 헤더
                 if (isLoading)

@@ -108,7 +108,12 @@ class _CategoryPageState extends State<CategoryPage>{
             Container(
               child: Row(
                 children: [
-                  GestureDetector(onTap: (){Navigator.push(context, MaterialPageRoute(builder: (context)=>MainPage(selectedMajor: _isSelected,)));},child: Text(''
+                  GestureDetector(
+                    onTap: (){
+                      Navigator.push(context, MaterialPageRoute(
+                          builder: (context)=>MainPage(selectedMajor: _isSelected,))
+                      );},
+                    child: Text(''
                       '⟨ 전공 선택',style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),),),
                   Spacer(),
                   Column(
