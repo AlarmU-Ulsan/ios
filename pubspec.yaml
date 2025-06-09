@@ -89,6 +89,11 @@ flutter:
     - assets/icons/알림it_checkButton_O.svg
     - assets/icons/알림it_checkButton_X.svg
     - assets/icons/알림it_trash.svg
+    - assets/icons/알림it_init.png
+    - assets/icons/알림it_page_1.svg
+    - assets/icons/알림it_page_2.svg
+    - assets/icons/알림it_page_3.svg
+    - assets/icons/알림it_page_4.svg
     # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

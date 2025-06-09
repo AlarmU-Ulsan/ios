@@ -10,9 +10,11 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'list_elements.dart';
 import 'api_service.dart';
+import 'intro.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -53,24 +55,41 @@ void main() async {
 class Notification_IT extends StatelessWidget {
   const Notification_IT({super.key});
 
+  Future<bool> checkFirstSeen() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    bool hasSeen = prefs.getBool('hasSeenIntro') ?? false;
+    return !hasSeen;
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: '알림it',
-      home: SplashScreen(),
+      home: FutureBuilder<bool>(
+        future: checkFirstSeen(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return SizedBox(); // 로딩 대기
+          return snapshot.data! ? IntroPage() : MainPage();
+        },
+      ),
     );
   }
 }
 
 class MainPage extends StatefulWidget {
-  const MainPage({super.key, required this.selectedMajor, this.selectedAlram=''});
+  const MainPage({
+    super.key,
+    this.selectedMajor = 'IT융합학부',
+    this.selectedAlram = '',
+  });
 
   final String selectedMajor;
   final String selectedAlram;
 
   @override
   State<MainPage> createState() => _MainPageState();
+
   static _MainPageState? of(BuildContext context) {
     return context.findAncestorStateOfType<_MainPageState>();
   }
