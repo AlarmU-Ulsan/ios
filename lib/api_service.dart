@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class ApiService {
   final String url;
@@ -29,18 +29,25 @@ class ApiService {
     } catch (e) {
       throw Exception("API 오류: $e");
     }
-  }
-  Future<Map<String, dynamic>> postFCMToken(String token, String major) async {
+  } //공지 불러오기
+  Future<Map<String, dynamic>> postFCMToken(String deviceId, String fcmToken) async {
     try {
       // 동적으로 URL을 생성
-      String fullUrl = "$url?token=$token&major=$major";
+      String fullUrl = "$url?deviceId=$deviceId&fcmToken=$fcmToken";
 
       final response = await http.post(
         Uri.parse(fullUrl),
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/json", // 반드시 필요!
         },
+        body: jsonEncode({
+          "deviceId": deviceId,
+          "fcmToken": fcmToken,
+        }),
       );
+
+      print("🔴 응답 상태코드: ${response.statusCode}");
+      print("📝 응답 바디: ${utf8.decode(response.bodyBytes)}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return json.decode(utf8.decode(response.bodyBytes)); // UTF-8 디코딩 적용
@@ -50,7 +57,35 @@ class ApiService {
     } catch (e) {
       throw Exception("API 오류: $e");
     }
-  }
+  } //fcm 등록
+  Future<Map<String, dynamic>> subscribeNotice(String deviceId, String major) async {
+    try {
+      // 동적으로 URL을 생성
+      String fullUrl = "$url?deviceId=$deviceId&major=$major";
+
+      final response = await http.post(
+        Uri.parse(fullUrl),
+        headers: {
+          "Content-Type": "application/json", // 반드시 필요!
+        },
+        body: jsonEncode({
+          "deviceId": deviceId,
+          "major": major,
+        }),
+      );
+
+      print("🔴 응답 상태코드: ${response.statusCode}");
+      print("📝 응답 바디: ${utf8.decode(response.bodyBytes)}");
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return json.decode(utf8.decode(response.bodyBytes)); // UTF-8 디코딩 적용
+      } else {
+        throw Exception("HTTP 오류: ${response.statusCode}");
+      }
+    } catch (e) {
+      throw Exception("API 오류: $e");
+    }
+  } //공지 구독
 }
 
 class Notice {

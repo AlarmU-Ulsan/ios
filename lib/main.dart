@@ -10,32 +10,35 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 import 'list_elements.dart';
 import 'api_service.dart';
 import 'intro.dart';
 
+String port = '6004';
+
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
-void requestPermissions() {
-  flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin>()
-      ?.requestPermissions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+Future<void> requestLocalNotificationPermissions() async {
+  final iosImplementation = flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+  if (iosImplementation != null) {
+    await iosImplementation.requestPermissions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+  }
 } //알림 권한 요청
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform, // 추가
-  );
-
   WidgetsFlutterBinding.ensureInitialized(); //로컬 푸시 알림 초기화
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  ); //firebase 초기화
 
   final DarwinInitializationSettings iosSettings =
       DarwinInitializationSettings();
@@ -46,7 +49,9 @@ void main() async {
 
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
-  requestPermissions(); //ios 권한 요청
+  await requestLocalNotificationPermissions(); //ios 권한 요청
+  NotificationSettings settings = await FirebaseMessaging.instance.requestPermission();
+  print('🔔 권한 상태: ${settings.authorizationStatus}');
 
   runApp(Notification_IT());
 }
@@ -137,7 +142,7 @@ class _MainPageState extends State<MainPage> {
       );
     }
 
-    // ✅ APNS 토큰 가져오기 (iOS에서만)
+    // APNS 토큰 가져오기 (iOS에서만)
     String? apnsToken = await _messaging.getAPNSToken();
     print("🔹 APNS Token: $apnsToken");
 
@@ -147,34 +152,95 @@ class _MainPageState extends State<MainPage> {
       return;
     }
 
-    // ✅ FCM 토큰 받기
+    // FCM 토큰 받기
     fcmToken = await _messaging.getToken();
     print("🔹 FCM Token: $fcmToken");
+
+    // FCM API 등록하기
+    await _fcmPost();
+
+    // 전공 구독하기
+    if(widget.selectedMajor != null){
+      await _subscribeMajor();
+    }else{print('구독한 전공이 없습니다!!');}
+
+    // 포그라운드 알림 전송하기
+    setupMessageListener();
   }
   void setupMessageListener() {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print("📩 포그라운드 메시지 수신: ${message.notification?.title} - ${message.notification?.body}");
+
+      // 알림 표시
+      flutterLocalNotificationsPlugin.show(
+        0,
+        message.notification?.title ?? '제목 없음',
+        message.notification?.body ?? '내용 없음',
+        NotificationDetails(
+          iOS: DarwinNotificationDetails(),
+          android: AndroidNotificationDetails(
+            'channel_id',
+            '일반 알림',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+      );
     });
-  } //포그라운드 알림 리스너 등록
-  Future<void> _toggleNotification() async {
+  }
+  Future<String> getDeviceId() async {
+    final deviceInfo = DeviceInfoPlugin();
+
+    if (Platform.isIOS) {
+      IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+      return iosInfo.identifierForVendor ?? "unknown_ios_id";
+    } else {
+      return "unsupported_platform";
+    }
+  } //디바이스 ID 가져오기
+  Future<void> _fcmPost() async {
     if (fcmToken == null) {
       print("⚠️ FCM 토큰이 존재하지 않습니다.");
       return;
     }
+    String deviceId = await getDeviceId();
 
-    final ApiService apiService = ApiService(url: "http://localhost:8080/fcm/fcm_token");
+    final ApiService apiService = ApiService(url: "https://alarm-it.ulsan.ac.kr:$port/fcm/fcm_token");
 
-    // ✅ API 호출 (POST 요청)
-    await apiService.postFCMToken(fcmToken!, selectedMajor);
+    try {
+      // ✅ API 호출 및 응답 수신
+      final response = await apiService.postFCMToken(deviceId, fcmToken!);
+      final message = response['message'] ?? '응답 메시지가 없습니다.';
+      print("📨 서버 응답: $message");
 
-    // ✅ UI 업데이트는 setState() 안에서 처리
-    setState(() {
-      selected_bell = !selected_bell;
-    });
+    } catch (e) {
+      print("❌ 오류 발생: $e");
+      showNotification("서버 요청 중 오류가 발생했습니다.");
+    }
+  } //fcm 등록
+  Future<void> _subscribeMajor() async {
+    final major = widget.selectedMajor;
+    print('구독요청 전공: $major');
+    String deviceId = await getDeviceId();
 
-    // ✅ 알림 표시
-    showNotification(selected_bell ? '알림이 설정되었습니다' : '알림이 해제되었습니다');
-  }
+    final ApiService apiService = ApiService(url: "https://alarm-it.ulsan.ac.kr:$port/fcm/subscribe");
+
+    try {
+      // ✅ API 호출 및 응답 수신
+      final response = await apiService.subscribeNotice(deviceId, major);
+      final message = response['message'] ?? '응답 메시지가 없습니다.';
+      print("📨 서버 응답: $message");
+
+      // ✅ UI 상태 업데이트
+      setState(() {
+        selected_bell = true;
+      });
+
+    } catch (e) {
+      print("❌ 오류 발생: $e");
+      showNotification("서버 요청 중 오류가 발생했습니다.");
+    }
+  } //전공 구독
   bool selected_bell = false; //알림 on/off
   String? fcmToken;
   Future<void> showNotification(String text) async {
@@ -214,7 +280,7 @@ class _MainPageState extends State<MainPage> {
     });
     try {
       final ApiService apiServiceSearch = ApiService(url:
-      "https://alarm-it.ulsan.ac.kr:58080/search?keyWord=$keyword&major=$selectedMajor&page=0");
+      "https://alarm-it.ulsan.ac.kr:$port/search?keyWord=$keyword&major=$selectedMajor&page=0");
       List<Notice> notices;
 
       notices = await apiServiceSearch.fetchNotices();
@@ -355,7 +421,7 @@ class _MainPageState extends State<MainPage> {
   Future<List<Notice>> loadBookmarkedItems(List<String> bookmarkedItems) async {
     final apiService = ApiService(
         url:
-        "https://alarm-it.ulsan.ac.kr:58080/notice?type=전체&page=$pageNum&major=$selectedMajor");
+        "https://alarm-it.ulsan.ac.kr:$port/notice?type=전체&page=$pageNum&major=$selectedMajor");
 
     List<Notice> allNotices = await apiService.fetchNotices(); // 전체 데이터를 불러옴
 
@@ -374,10 +440,10 @@ class _MainPageState extends State<MainPage> {
     try {
       final ApiService apiServiceAll = ApiService(
           url:
-          "https://alarm-it.ulsan.ac.kr:58080/notice?type=전체&page=0&major=$selectedMajor");
+          "https://alarm-it.ulsan.ac.kr:$port/notice?type=전체&page=0&major=$selectedMajor");
       final ApiService apiServiceImportant = ApiService(
           url:
-          "https://alarm-it.ulsan.ac.kr:58080/notice?type=중요 공지&page=0&major=$selectedMajor");
+          "https://alarm-it.ulsan.ac.kr:$port/notice?type=중요 공지&page=0&major=$selectedMajor");
       List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
       List<Notice> notices;
 
@@ -432,10 +498,10 @@ class _MainPageState extends State<MainPage> {
 
       final ApiService apiServiceAll = ApiService(
           url:
-          "https://alarm-it.ulsan.ac.kr:58080/notice?type=전체&page=$pageNum&major=$selectedMajor");
+          "https://alarm-it.ulsan.ac.kr:$port/notice?type=전체&page=$pageNum&major=$selectedMajor");
       final ApiService apiServiceImportant = ApiService(
           url:
-          "https://alarm-it.ulsan.ac.kr:58080/notice?type=중요 공지&page=$pageNum&major=$selectedMajor");
+          "https://alarm-it.ulsan.ac.kr:$port/notice?type=중요 공지&page=$pageNum&major=$selectedMajor");
       List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
       List<Notice> notices;
 
@@ -525,7 +591,6 @@ class _MainPageState extends State<MainPage> {
   void initState() {
     super.initState();
     _initializeFirebase();
-    bool isChanged = false;
     selectedMajor = widget.selectedMajor;
     selectedAlram = widget.selectedAlram;
     if (widget.changeMajor) {

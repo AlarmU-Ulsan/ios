@@ -1,5 +1,6 @@
-import Flutter
 import UIKit
+import Flutter
+import Firebase // 꼭 필요합니다
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -7,9 +8,13 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-  if #available(iOS 10.0, *) {
-        UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
-  }
+
+    FirebaseApp.configure() // ✅ 반드시 맨 위에서 호출
+
+    if #available(iOS 10.0, *) {
+      UNUserNotificationCenter.current().delegate = self
+    }
+
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
