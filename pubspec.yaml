@@ -42,8 +42,8 @@ dependencies:
   timezone: ^0.10.0
   shared_preferences: ^2.5.2
   http: ^1.3.0
-  firebase_messaging: ^15.2.4
-  firebase_core: ^3.12.1
+  firebase_messaging: ^14.7.10
+  firebase_core: ^2.30.1
 
 dev_dependencies:
   flutter_test:
@@ -67,33 +67,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/icons/알림it_bell_O.svg
-    - assets/icons/알림it_bell_X.svg
-    - assets/icons/알림it_uou.svg
-    - assets/icons/알림it_검색.svg
-    - assets/icons/알림it_북마크_O.svg
-    - assets/icons/알림it_북마크_X.svg
-    - assets/icons/알림it_웹버튼.svg
-    - assets/icons/알림it_back.svg
-    - assets/icons/알림it_ICT로고.svg
-    - assets/icons/알림it_북마_O.svg
-    - assets/icons/알림it_북마_X.svg
-    - assets/icons/알림it_전체_O.svg
-    - assets/icons/알림it_전체_X.svg
-    - assets/icons/알림it_중요공지_O.svg
-    - assets/icons/알림it_중요공지_X.svg
-    - assets/icons/알림it_UOU_big.svg
-    - assets/icons/알림it_AI융합전공_logo.svg
-    - assets/icons/알림it_ICT융합학부_logo.svg
-    - assets/icons/알림it_IT융합학부_logo.svg
-    - assets/icons/알림it_checkButton_O.svg
-    - assets/icons/알림it_checkButton_X.svg
-    - assets/icons/알림it_trash.svg
-    - assets/icons/알림it_init.png
-    - assets/icons/알림it_page_1.svg
-    - assets/icons/알림it_page_2.svg
-    - assets/icons/알림it_page_3.svg
-    - assets/icons/알림it_page_4.svg
+    - assets/icons/
     # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

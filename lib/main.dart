@@ -114,10 +114,10 @@ class _MainPageState extends State<MainPage> {
       },
       child: (selectedAlram != '')
           ? SvgPicture.asset(
-              'assets/icons/알림it_bell_O.svg',
+              'assets/icons/알림it_bell.svg',
             )
           : SvgPicture.asset(
-              'assets/icons/알림it_bell_X.svg',
+              'assets/icons/알림it_bell.svg',
             ),
     );
   }
@@ -555,9 +555,9 @@ class _MainPageState extends State<MainPage> {
                     Row(
                       children: [
                         SvgPicture.asset(
-                          'assets/icons/알림it_uou.svg',
-                          width: 32,
-                          height: 16.33,
+                          'assets/icons/알림it_icon.svg',
+                          width: 21,
+                          height: 22,
                         ),
                         SizedBox(
                           width: 5,
@@ -689,16 +689,11 @@ class _MainPageState extends State<MainPage> {
                     ),
                   ),
                 if (!isLoading && elements.isEmpty)
-                  Center(
-                    child: Container(
-                      margin: EdgeInsets.only(
-                          top: 250, bottom: 110), // 원하는 만큼 위쪽 여백 조정
-                      child: SvgPicture.asset(
-                        'assets/icons/알림it_UOU_big.svg',
-                        width: 80.52,
-                        height: 110.74,
-                      ),
-                    ),
+                  Column(
+                    children: [
+                      SizedBox(height: 230,),
+                      Text('공지된 북마크가 없습니다', style: TextStyle(fontSize:20, color: Color(0xff9C9C9C)),),
+                    ],
                   )
               ],
             ),

@@ -102,7 +102,7 @@ class _InitSelectPage1State extends State<InitSelectPage1>{
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                    Text('공지를 확인할 전공을\n선택해주세요!', style: TextStyle(fontWeight: FontWeight.bold,fontSize: 20),),
+                    Text('공지를 확인할 전공을\n선택해주세요!', style: TextStyle(fontWeight: FontWeight.bold,fontSize: 20, height: 1.1),),
                     Text('학과는 언제든지 또 변경할 수 있어요.', style: TextStyle(color: Color(0xff495258), fontSize: 12),)
                   ],),
                   Spacer(),
@@ -248,18 +248,19 @@ class _InitSelectPage2State extends State<InitSelectPage2>{
     return Scaffold(
       backgroundColor: Colors.white,
       body: Padding(
-        padding: const EdgeInsets.fromLTRB(30, 120, 30, 25),
+        padding: const EdgeInsets.fromLTRB(30, 90, 30, 25),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(onTap: (){Navigator.pop(context);}, child: Text('< 전공선택', style: TextStyle(color: Color(0xff009D72),fontWeight: FontWeight.bold),)),
+            SizedBox(height: 30,),
             Container(
               child: Row(
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('공지를 확인할 전공을\n선택해주세요!', style: TextStyle(fontWeight: FontWeight.bold,fontSize: 20),),
+                      Text('공지를 확인할 전공을\n선택해주세요!', style: TextStyle(fontWeight: FontWeight.bold,fontSize: 20, height: 1.1),),
                       Text('학과는 언제든지 또 변경할 수 있어요.', style: TextStyle(color: Color(0xff495258), fontSize: 12),)
                     ],),
                   Spacer(),
