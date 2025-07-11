@@ -16,6 +16,7 @@ class CategoryPage extends StatefulWidget {
 class _CategoryPageState extends State<CategoryPage>{
   String _isSelected = '';
   String _searchText = '';
+  bool _isChanged = false;
 
   final Map<String, List<String>> majorMap = {
     "미래엔지니어링융합대학": ["ICT융합학부", '미래모빌리티공학부','에너지화학공학부','신소재·반도체융합학부','전기전자융합학부','바이오매디컬헬스학부'],
@@ -57,8 +58,9 @@ class _CategoryPageState extends State<CategoryPage>{
           onTap: () {
             setState(() {
               if (_isSelected==name){
-                _isSelected = '';
+                _isSelected = name;
               }else{
+                _isChanged=true;
                 _isSelected=name;}
             });
           },
@@ -111,7 +113,7 @@ class _CategoryPageState extends State<CategoryPage>{
                   GestureDetector(
                     onTap: (){
                       Navigator.push(context, MaterialPageRoute(
-                          builder: (context)=>MainPage(selectedMajor: _isSelected,))
+                          builder: (context)=>MainPage(selectedMajor: _isSelected, changeMajor: _isChanged,))
                       );},
                     child: Text(''
                       '⟨ 전공 선택',style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),),),
@@ -124,7 +126,7 @@ class _CategoryPageState extends State<CategoryPage>{
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => MainPage(selectedMajor: _isSelected,),
+                                builder: (context) => MainPage(selectedMajor: _isSelected, changeMajor: _isChanged,),
                               ),
                             );
                           },

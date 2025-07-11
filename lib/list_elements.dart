@@ -103,6 +103,28 @@ class _ElementWidgetState extends State<ElementWidget> {
                                 ),
                               ),
                             ),
+                          if(widget.type =='NECESSARY')
+                            SizedBox(
+                              height: 15,
+                              width: 45,
+                              child: Container(
+                                margin: EdgeInsets.only(left:2.0, right: 5.0),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(3),
+                                  color: Color(0xffF2BC1B),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '필독',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           SizedBox(
                             width: 70,
                             height: 15,

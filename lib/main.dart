@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:notification_it/alram.dart';
 import 'package:notification_it/majorCategory.dart';
-import 'package:notification_it/splashScreen.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -82,10 +81,12 @@ class MainPage extends StatefulWidget {
     super.key,
     this.selectedMajor = 'IT융합학부',
     this.selectedAlram = '',
+    this.changeMajor = false
   });
 
   final String selectedMajor;
   final String selectedAlram;
+  final bool changeMajor;
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -524,8 +525,34 @@ class _MainPageState extends State<MainPage> {
   void initState() {
     super.initState();
     _initializeFirebase();
+    bool isChanged = false;
     selectedMajor = widget.selectedMajor;
     selectedAlram = widget.selectedAlram;
+    if (widget.changeMajor) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Container(
+              padding: EdgeInsets.symmetric(horizontal: 15,vertical: 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('전공이 변경되었어요!',style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),),
+                  Text('공지 채널을 변경해도 새 공지의\n알림을 받는 채널은 변경되지 않아요!', style: TextStyle(fontSize: 11, color: Colors.white),)
+                ],
+              ),
+            ),
+            duration: Duration(seconds: 3),
+            backgroundColor: Color(0xff009D72),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(60),
+            ),
+              behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          ),
+        );
+      });
+    }
     loadData();
     _scrollController.addListener(_scrollListener);
   }
@@ -550,7 +577,7 @@ class _MainPageState extends State<MainPage> {
                 Column(
                   children: [
                     SizedBox(
-                      height: 10,
+                      height: 20,
                     ),
                     Row(
                       children: [
@@ -560,7 +587,7 @@ class _MainPageState extends State<MainPage> {
                           height: 22,
                         ),
                         SizedBox(
-                          width: 5,
+                          width: 10,
                         ),
                         GestureDetector(
                           onTap: () {_navigateAndGetMajor();},
