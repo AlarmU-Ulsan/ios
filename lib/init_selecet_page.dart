@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:notification_it/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class InitSelectPage1 extends StatefulWidget{
   const InitSelectPage1({super.key});
@@ -12,6 +13,7 @@ class InitSelectPage1 extends StatefulWidget{
 class _InitSelectPage1State extends State<InitSelectPage1>{
   String _isSelected = '';
   String _searchText = '';
+  final List<String> _isSelectedList = [];
 
   final Map<String, List<String>> majorMap = {
     "미래엔지니어링융합대학": ["ICT융합학부", '미래모빌리티공학부','에너지화학공학부','신소재·반도체융합학부','전기전자융합학부','바이오매디컬헬스학부'],
@@ -54,9 +56,14 @@ class _InitSelectPage1State extends State<InitSelectPage1>{
         setState(() {
           if (_isSelected==name){
             _isSelected = '';
+            _isSelectedList.remove(name);
           }else{
-          _isSelected=name;}
+          _isSelected=name;
+          _isSelectedList.add(name);
+          }
         });
+        print(_isSelectedList);
+        _saveSelectedMajors();
       },
       child: _isSelected==name
           ? SvgPicture.asset(
@@ -69,6 +76,11 @@ class _InitSelectPage1State extends State<InitSelectPage1>{
         ],
       ),
     );
+  }
+
+  void _saveSelectedMajors() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setStringList('alram_list', _isSelectedList);
   }
 
   @override
@@ -160,8 +172,8 @@ class InitSelectPage2 extends StatefulWidget{
 }
 
 class _InitSelectPage2State extends State<InitSelectPage2>{
-  String _isSelected = '';
   String _searchText = '';
+  List<String> _isSelectedList = [];
 
   final Map<String, List<String>> majorMap = {
     "미래엔지니어링융합대학": ["ICT융합학부", '미래모빌리티공학부','에너지화학공학부','신소재·반도체융합학부','전기전자융합학부','바이오매디컬헬스학부'],
@@ -202,13 +214,17 @@ class _InitSelectPage2State extends State<InitSelectPage2>{
         children: [Text(name,style: TextStyle( fontSize: 17),), Spacer(), GestureDetector(
           onTap: () {
             setState(() {
-              if (_isSelected==name){
-                _isSelected = '';
+              if (_isSelectedList.contains(name)){
+                _isSelectedList.remove(name);
+                _saveSelectedMajors();
               }else{
-                _isSelected=name;}
+                _isSelectedList.add(name);
+                _saveSelectedMajors();
+              }
             });
+            print(_isSelectedList);
           },
-          child: _isSelected==name
+          child: _isSelectedList.contains(name)
               ? SvgPicture.asset(
             'assets/icons/알림it_bell_O.svg',
           )
@@ -221,10 +237,24 @@ class _InitSelectPage2State extends State<InitSelectPage2>{
     );
   }
 
+  void _saveSelectedMajors() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setStringList('alram_list', _isSelectedList);
+  }
+
+  void _loadSelectedMajoirs() async{
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList('alram_list') ?? [];
+    setState(() {
+      _isSelectedList = saved.toList();
+      print(_isSelectedList);
+    });
+  }
+
   @override
-  void initState() {
+  void initState(){
     super.initState();
-    _isSelected = widget.major;
+    _loadSelectedMajoirs();
   }
 
   @override
@@ -267,7 +297,7 @@ class _InitSelectPage2State extends State<InitSelectPage2>{
                   Column(
                     children: [
                       TextButton(onPressed: (){
-                        Navigator.push(context, MaterialPageRoute(builder: (context)=>MainPage(selectedMajor: widget.major,selectedAlram: _isSelected,)));
+                        Navigator.push(context, MaterialPageRoute(builder: (context)=>MainPage(selectedMajor: widget.major,selectedAlram: _isSelectedList,)));
                       }, child: Text('완료', style: TextStyle(fontWeight:FontWeight.bold,color: Color(0xff009D72)),)),
                       SizedBox(height: 40,)
                     ],

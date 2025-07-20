@@ -3,20 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:notification_it/keyword.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_service.dart';
 import 'main.dart';
 
 class AlarmPage extends StatefulWidget {
+  final String deviceId;
+
+  AlarmPage({this.deviceId = ''});
+
   @override
   _AlarmPageState createState() => _AlarmPageState();
 }
 
 class _AlarmPageState extends State<AlarmPage> {
-  bool _iskeyword = false;
   bool _isChecked = false;
 
-  String _isSelected = '';
+  List<String> _isSelectedList = [];
   String _searchText = '';
 
   final Map<String, List<String>> majorMap = {
@@ -69,27 +73,30 @@ class _AlarmPageState extends State<AlarmPage> {
     );
   }
 
-  Widget Selector(String name) {
+  Widget Selector(String major) {
     return Container(
       margin: EdgeInsets.only(top: 30),
       child: Row(
         children: [
           Text(
-            name,
+            major,
             style: TextStyle(fontSize: 17),
           ),
           Spacer(),
           GestureDetector(
             onTap: () {
               setState(() {
-                if (_isSelected == name) {
-                  _isSelected = '';
+                if(_isSelectedList.contains(major)){
+                  _unsubscribeMajor(major);
+                  _isSelectedList.remove(major);
                 } else {
-                  _isSelected = name;
+                  _isSelectedList.add(major);
+                  _subscribeMajor(major);
                 }
+                _saveSelectedMajors();
               });
             },
-            child: _isSelected == name
+            child: _isSelectedList.contains(major)
                 ? SvgPicture.asset(
                     'assets/icons/알림it_bell_O.svg',
                   )
@@ -123,107 +130,113 @@ class _AlarmPageState extends State<AlarmPage> {
     );
   }
 
-  String? fcmToken;
-  Future<void> _toggleNotification() async {
-    if (fcmToken == null) {
-      print("⚠️ FCM 토큰이 존재하지 않습니다.");
-      return;
+  Future<void> _subscribeMajor(String major) async {
+    String deviceId = widget.deviceId;
+
+    final ApiService apiService = ApiService(url: "https://alarm-it.ulsan.ac.kr:$port/fcm/subscribe");
+
+    try {
+      // ✅ API 호출 및 응답 수신
+      final response = await apiService.subscribeNotice(deviceId, major);
+      final message = response['message'] ?? '응답 메시지가 없습니다.';
+      print("📨 서버 응답: $message");
+
+    } catch (e) {
+      print("❌ 오류 발생: $e");
     }
+  } //전공 구독
+  Future<void> _unsubscribeMajor(String major) async {
+    String deviceId = widget.deviceId;
 
-    final ApiService apiService =
-        ApiService(url: "http://localhost:8080/fcm/fcm_token");
+    final ApiService apiService = ApiService(url: "https://alarm-it.ulsan.ac.kr:$port/fcm/subscribe");
 
-    // ✅ API 호출 (POST 요청)
-    await apiService.postFCMToken(fcmToken!, _isSelected);
+    try {
+      // ✅ API 호출 및 응답 수신
+      final response = await apiService.unsubscribeNotice(deviceId, major);
 
-    // ✅ UI 업데이트는 setState() 안에서 처리
+    } catch (e) {
+      print("❌ 오류 발생: $e");
+    }
+  } //전공 삭제
+
+  void _saveSelectedMajors() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setStringList('alram_list', _isSelectedList);
+  }
+
+  void _loadSelectedMajoirs() async{
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList('alram_list') ?? [];
     setState(() {
-      _isChecked = !_isChecked;
+      _isSelectedList = saved.toList();
     });
-
-    // ✅ 알림 표시
-    showNotification(_isChecked ? '알림이 설정되었습니다' : '알림이 해제되었습니다');
   }
 
-  Color _changeColor(val) {
-    if (val == 0) {
-      if (!_iskeyword) {
-        return Color(0xff009D72);
-      } else {
-        return Color(0xffA3A3A3);
-      }
-    } else {
-      if (!_iskeyword) {
-        return Color(0xffA3A3A3);
-      } else {
-        return Color(0xff009D72);
-      }
-    }
+  void _saveAlarmState(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool("isAllAlarmOn", value);
   }
 
-  Widget _selectCategory() {
+  void _loadAlarmState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool("isAllAlarmOn") ?? true; // 기본값 true
+    setState(() {
+      _isChecked = saved;
+    });
+  }
+
+  Widget _header() {
     return Row(
       children: [
         Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _iskeyword = !_iskeyword;
-              });
-            },
-            child: Column(
-              children: [
-                Center(
-                  child: Text(
-                    '알림설정',
-                    style: TextStyle(
-                        color: _changeColor(0),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15),
-                  ),
+          child: Column(
+            children: [
+              Center(
+                child: Text(
+                  '알림설정',
+                  style: TextStyle(
+                      color: Color(0xff009D72),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15),
                 ),
-                SizedBox(
-                  height: 8,
-                ),
-                Container(
-                  height: 1,
-                  color: _changeColor(0),
-                )
-              ],
-            ),
+              ),
+              SizedBox(
+                height: 8,
+              ),
+              Container(
+                height: 3,
+                color: Color(0xff009D72),
+              )
+            ],
           ),
         ),
-        Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _iskeyword = !_iskeyword;
-              });
-            },
-            child: Column(
-              children: [
-                Center(
-                  child: Text(
-                    '키워드',
-                    style: TextStyle(
-                        color: _changeColor(1),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15),
-                  ),
+         Expanded(
+          child: Column(
+            children: [
+              Center(
+                child: Text(
+                  '',
                 ),
-                SizedBox(
-                  height: 8,
-                ),
-                Container(
-                  height: 1,
-                  color: _changeColor(1),
-                )
-              ],
-            ),
+              ),
+              SizedBox(
+                height: 8,
+              ),
+              Container(
+                height: 2,
+                color: Color(0xffA3A3A3),
+              )
+            ],
           ),
         ),
       ],
     );
+  }
+
+  @override
+  void initState(){
+    super.initState();
+    _loadSelectedMajoirs();
+    _loadAlarmState();
   }
 
   @override
@@ -246,13 +259,13 @@ class _AlarmPageState extends State<AlarmPage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Padding(
-        padding: EdgeInsets.fromLTRB(30, 80, 30, 25),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 상단: 뒤로가기 + 스위치
-            Row(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 상단: 뒤로가기 + 스위치
+          Container(
+            padding: EdgeInsets.fromLTRB(30, 80, 30, 0),
+            child: Row(
               children: [
                 GestureDetector(
                   onTap: () {
@@ -263,7 +276,7 @@ class _AlarmPageState extends State<AlarmPage> {
                       Icon(Icons.arrow_back_ios_new_sharp, size: 20),
                       SizedBox(width: 5),
                       Text(
-                        '알림',
+                        '알림 설정',
                         style: TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 20),
                       ),
@@ -274,37 +287,51 @@ class _AlarmPageState extends State<AlarmPage> {
                 CupertinoSwitch(
                   value: _isChecked,
                   activeColor: Color(0xFF009D72),
-                  onChanged: (bool? value) {
+                  onChanged: (bool? value) async {
                     setState(() {
-                      if (!_isChecked) {
-                        showNotification('알림이 설정되었습니다');
-                      } else {
-                        showNotification('알림이 해제되었습니다');
-                      }
-                      _isChecked = !_isChecked;
+                      _isChecked = value ?? false;
                     });
-                    _toggleNotification();
+
+                    _saveAlarmState(_isChecked);
+
+                    if (_isChecked) {
+                      showNotification('알림이 설정되었습니다');
+                      // 전체 구독
+                      for (String major in _isSelectedList) {
+                        try {
+                          await _subscribeMajor(major);
+                        } catch (e) {
+                          print("❌ $major 구독 실패: $e");
+                        }
+                      }
+                    } else {
+                      showNotification('알림이 해제되었습니다');
+                      // 전체 구독 해제
+                      for (String major in _isSelectedList) {
+                        try {
+                          await _unsubscribeMajor(major);
+                        } catch (e) {
+                          print("❌ $major 구독 해제 실패: $e");
+                        }
+                      }
+                    }
                   },
                 )
               ],
             ),
-            SizedBox(height: 17),
-            _selectCategory(),
-
-            if (!_iskeyword)
-              Expanded(
+          ),
+          SizedBox(height: 30),
+          _header(),
+          //if (!_iskeyword)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(30, 0, 30, 25),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(
                       height: 50,
                     ),
-                    Text(
-                      '새 공지 알림 전공 변경',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 40),
                     SearchForm(),
                     Container(height: 2, color: Color(0xff009D72)),
                     SizedBox(height: 40),
@@ -317,41 +344,42 @@ class _AlarmPageState extends State<AlarmPage> {
                   ],
                 ),
               ),
-            if(_iskeyword)
-            Expanded(
-                child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Row(
-                    children: [
-                      SvgPicture.asset(
-                        'assets/icons/알림it_bell_O.svg',
-                      ),
-                      SizedBox(width: 15,),
-                      Text('알림 받는 키워드 n개', style: TextStyle(fontWeight: FontWeight.bold),),
-                      Spacer(),
-                      GestureDetector(
-                        onTap: (){
-                          Navigator.push(context, MaterialPageRoute(builder: (context)=>KeywordPage()));
-                        },
-                        child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 10,vertical: 3),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(30),
-                            color: Color(0xffEEEEEE),
-                          ),
-                          child: Text('키워드 설정'),
+            ),
+          /*
+          if(_iskeyword)
+          Expanded(
+              child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Row(
+                  children: [
+                    SvgPicture.asset(
+                      'assets/icons/알림it_bell_O.svg',
+                    ),
+                    SizedBox(width: 15,),
+                    Text('알림 받는 키워드 n개', style: TextStyle(fontWeight: FontWeight.bold),),
+                    Spacer(),
+                    GestureDetector(
+                      onTap: (){
+                        Navigator.push(context, MaterialPageRoute(builder: (context)=>KeywordPage()));
+                      },
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 10,vertical: 3),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(30),
+                          color: Color(0xffEEEEEE),
                         ),
-                      )
-                    ],
-                  ),
-                )
-              ],
-            ))
-          ],
-        ),
+                        child: Text('키워드 설정'),
+                      ),
+                    )
+                  ],
+                ),
+              )
+            ],
+          ))*/
+        ],
       ),
     );
   }

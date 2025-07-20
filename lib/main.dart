@@ -82,15 +82,15 @@ class Notification_IT extends StatelessWidget {
 }
 
 class MainPage extends StatefulWidget {
-  const MainPage({
+  MainPage({
     super.key,
+    List<String>? selectedAlram,
     this.selectedMajor = 'IT융합학부',
-    this.selectedAlram = '',
     this.changeMajor = false
-  });
+  }) : selectedAlram = selectedAlram ?? ['IT융합학부'];
 
+  final List<String> selectedAlram;
   final String selectedMajor;
-  final String selectedAlram;
   final bool changeMajor;
 
   @override
@@ -108,17 +108,17 @@ class _MainPageState extends State<MainPage> {
   int pageNum = 0;
   String type = '전체';
   late String selectedMajor;
-  late String selectedAlram;
   List<ElementWidget> elements = [];
 
   //알림
   Widget _bellIcon() {
     bool isSelected_bell = selected_bell;
     return GestureDetector(
-      onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context)=>AlarmPage()));
+      onTap: () async {
+        String deviceID = await getDeviceId();
+        Navigator.push(context, MaterialPageRoute(builder: (context)=>AlarmPage(deviceId: deviceID,)));
       },
-      child: (selectedAlram != '')
+      child: (isSelected_bell)
           ? SvgPicture.asset(
               'assets/icons/알림it_bell.svg',
             )
@@ -144,7 +144,8 @@ class _MainPageState extends State<MainPage> {
 
     // APNS 토큰 가져오기 (iOS에서만)
     String? apnsToken = await _messaging.getAPNSToken();
-    print("🔹 APNS Token: $apnsToken");
+    if (apnsToken != null){
+    print("🔹 APNS Token is available");}
 
     // APNS 토큰이 null이면 알림을 사용할 수 없음
     if (apnsToken == null) {
@@ -154,7 +155,8 @@ class _MainPageState extends State<MainPage> {
 
     // FCM 토큰 받기
     fcmToken = await _messaging.getToken();
-    print("🔹 FCM Token: $fcmToken");
+    if (fcmToken != null) {
+    print("🔹 FCM Token is available");}
 
     // FCM API 등록하기
     await _fcmPost();
@@ -163,15 +165,16 @@ class _MainPageState extends State<MainPage> {
     if(widget.selectedMajor != null){
       await _subscribeMajor();
     }else{print('구독한 전공이 없습니다!!');}
-
-    // 포그라운드 알림 전송하기
-    setupMessageListener();
   }
   void setupMessageListener() {
+    print('setupmessageListener 함수 정상 적용');
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print("📩 포그라운드 메시지 수신: ${message.notification?.title} - ${message.notification?.body}");
+      print('✅ 수신 성공');
+      print('🔹 message: ${message.toMap()}');
+      print('🔸 title: ${message.notification?.title}');
+      print('🔸 body: ${message.notification?.body}');
+      print('🔸 data: ${message.data}');
 
-      // 알림 표시
       flutterLocalNotificationsPlugin.show(
         0,
         message.notification?.title ?? '제목 없음',
@@ -185,7 +188,32 @@ class _MainPageState extends State<MainPage> {
             priority: Priority.high,
           ),
         ),
+        payload: message.data['link'],  // 알림 클릭 시 전달할 데이터 (예: 링크)
       );
+    });
+
+    // 알림 클릭 시 처리 (앱이 백그라운드 또는 종료 상태에서)
+    flutterLocalNotificationsPlugin.initialize(
+      InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        iOS: DarwinInitializationSettings(),
+      ),
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        final payload = response.payload;
+        if (payload != null) {
+          // TODO: payload를 이용해 링크 열기, 화면 이동 등 처리
+          print("🔔 알림 클릭 시 payload: $payload");
+        }
+      },
+    );
+
+    // 앱이 완전히 종료된 상태에서 알림 클릭 시 getInitialMessage 확인도 필요
+    FirebaseMessaging.instance.getInitialMessage().then((message) {
+      if (message != null) {
+        final link = message.data['link'];
+        print("앱 종료 상태에서 알림 클릭, 링크: $link");
+        // TODO: 링크를 이용해 화면 이동 처리
+      }
     });
   }
   Future<String> getDeviceId() async {
@@ -199,6 +227,7 @@ class _MainPageState extends State<MainPage> {
     }
   } //디바이스 ID 가져오기
   Future<void> _fcmPost() async {
+    print('\n===== 기기등록 API =====');
     if (fcmToken == null) {
       print("⚠️ FCM 토큰이 존재하지 않습니다.");
       return;
@@ -219,26 +248,33 @@ class _MainPageState extends State<MainPage> {
     }
   } //fcm 등록
   Future<void> _subscribeMajor() async {
-    final major = widget.selectedMajor;
-    print('구독요청 전공: $major');
+    print('\n===== 전공구독 API =====');
+    final List<String> majors = widget.selectedAlram;
+    print('구독요청 전공: $majors');
     String deviceId = await getDeviceId();
-
     final ApiService apiService = ApiService(url: "https://alarm-it.ulsan.ac.kr:$port/fcm/subscribe");
 
-    try {
-      // ✅ API 호출 및 응답 수신
-      final response = await apiService.subscribeNotice(deviceId, major);
-      final message = response['message'] ?? '응답 메시지가 없습니다.';
-      print("📨 서버 응답: $message");
+    bool allSuccess = true;
 
-      // ✅ UI 상태 업데이트
+    for (String major in majors) {
+      try {
+        final response = await apiService.subscribeNotice(deviceId, major);
+        final message = response['message'] ?? '응답 메시지가 없습니다.';
+        print("✅ [$major] 구독 성공: $message");
+      } catch (e) {
+        allSuccess = false;
+        print("❌ [$major] 구독 실패: $e");
+      }
+    }
+
+
+    // ✅ UI 상태 업데이트 (모든 구독 성공 시만 알림 아이콘 상태 변경)
+    if (allSuccess) {
       setState(() {
         selected_bell = true;
       });
-
-    } catch (e) {
-      print("❌ 오류 발생: $e");
-      showNotification("서버 요청 중 오류가 발생했습니다.");
+    } else {
+      showNotification("일부 전공 구독에 실패했습니다.");
     }
   } //전공 구독
   bool selected_bell = false; //알림 on/off
@@ -323,8 +359,6 @@ class _MainPageState extends State<MainPage> {
             pageNum = 0;
             type = '전체';
             loadData();
-            print('all');
-            print('pageNum = $pageNum');
           });
         },
         child: SvgPicture.asset(
@@ -349,8 +383,6 @@ class _MainPageState extends State<MainPage> {
             pageNum = 0;
             type = '중요 공지';
             loadData();
-            print('important');
-            print('pageNum = $pageNum');
           });
         },
         child: SvgPicture.asset(
@@ -374,8 +406,6 @@ class _MainPageState extends State<MainPage> {
             pageNum = 0;
             elements = [];
             loadData();
-            print('bookmark');
-            print('pageNum = $pageNum');
           });
         },
         child: SvgPicture.asset(
@@ -590,9 +620,8 @@ class _MainPageState extends State<MainPage> {
   @override
   void initState() {
     super.initState();
-    _initializeFirebase();
+    _initializeFirebase().then((_){setupMessageListener();});
     selectedMajor = widget.selectedMajor;
-    selectedAlram = widget.selectedAlram;
     if (widget.changeMajor) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
