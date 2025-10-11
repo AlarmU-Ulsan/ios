@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import 'main.dart';
+import 'mainPage.dart';
 
 class CategoryPage extends StatefulWidget {
   CategoryPage({required this.selectedMajor});

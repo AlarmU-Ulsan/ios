@@ -15,7 +15,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // 위젯이 완전히 빌드된 후에 네비게이션 실행
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Timer(Duration(milliseconds: 5000), () {
+      Timer(Duration(milliseconds: 4000), () {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(

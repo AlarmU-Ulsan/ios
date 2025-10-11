@@ -2,7 +2,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:notification_it/webView.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'main.dart';
+import 'mainPage.dart';
 
 class ElementWidget extends StatefulWidget {
   final int id;

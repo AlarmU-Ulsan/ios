@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:notification_it/main.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'mainPage.dart';
+
 class InitSelectPage1 extends StatefulWidget{
-  const InitSelectPage1({super.key});
+  final bool skipSecond;
+
+  const InitSelectPage1({super.key, this.skipSecond = false});
 
   @override
   _InitSelectPage1State createState() => _InitSelectPage1State();
@@ -123,12 +126,23 @@ class _InitSelectPage1State extends State<InitSelectPage1>{
                       if (_isSelected != '') ...[
                         TextButton(
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => InitSelectPage2(major: _isSelected),
-                              ),
-                            );
+                            if (widget.skipSecond) {
+                              // 바로 MainPage
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MainPage(selectedMajor: _isSelected),
+                                ),
+                              );
+                            } else {
+                              // InitSelectPage2로 이동
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => InitSelectPage2(major: _isSelected),
+                                ),
+                              );
+                            }
                           },
                           child: Text(
                             '다음',

@@ -6,7 +6,7 @@ import 'package:notification_it/keyword.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_service.dart';
-import 'main.dart';
+import 'mainPage.dart';
 
 class AlarmPage extends StatefulWidget {
   final String deviceId;
