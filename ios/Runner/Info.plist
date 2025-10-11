@@ -55,12 +55,5 @@
         <string>fetch</string>
         <string>remote-notification</string>
     </array>
-    <key>NSUserTrackingUsageDescription</key>
-    <string>앱에서 푸시 알림을 보내기 위해 필요합니다.</string>
-	<key>NSAppTransportSecurity</key>
-    <dict>
-        <key>NSAllowsArbitraryLoads</key>
-        <true/>
-    </dict>
 </dict>
 </plist>
