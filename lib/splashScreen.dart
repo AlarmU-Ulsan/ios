@@ -12,7 +12,6 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-
     // 위젯이 완전히 빌드된 후에 네비게이션 실행
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Timer(Duration(milliseconds: 4000), () {

@@ -18,12 +18,10 @@ import 'init_selecet_page.dart';
 import 'list_elements.dart';
 import 'api_service.dart';
 import 'intro.dart';
+import 'keys.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 FlutterLocalNotificationsPlugin();
-
-String port = 'https://alarm-it.ulsan.ac.kr/test';
-// String port = 'https://alarm-it.ulsan.ac.kr';
 
 class MainPage extends StatefulWidget {
   MainPage({
@@ -130,6 +128,7 @@ class _MainPageState extends State<MainPage> {
       },
     );
   }
+  bool _consented = false;
 
   //알림
   Widget _bellIcon() {
@@ -682,35 +681,61 @@ class _MainPageState extends State<MainPage> {
   @override
   void initState() {
     super.initState();
-    _initializeFirebase().then((_){setupMessageListener();});
+
+    _checkConsentAndInitFCM(); // ✅ 동의 체크 후 FCM 초기화
+
     selectedMajor = widget.selectedMajor;
+
     if (widget.changeMajor) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Container(
-              padding: EdgeInsets.symmetric(horizontal: 15,vertical: 0),
+              padding: EdgeInsets.symmetric(horizontal: 15, vertical: 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('전공이 변경되었어요!',style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),),
-                  Text('공지 채널을 변경해도 새 공지의\n알림을 받는 채널은 변경되지 않아요!', style: TextStyle(fontSize: 11, color: Colors.white),)
+                children: const [
+                  Text(
+                    '전공이 변경되었어요!',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
+                  ),
+                  Text(
+                    '공지 채널을 변경해도 새 공지의\n알림을 받는 채널은 변경되지 않아요!',
+                    style: TextStyle(fontSize: 11, color: Colors.white),
+                  )
                 ],
               ),
             ),
-            duration: Duration(seconds: 3),
-            backgroundColor: Color(0xff009D72),
+            duration: const Duration(seconds: 3),
+            backgroundColor: const Color(0xff009D72),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(60),
             ),
             behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           ),
         );
       });
     }
+
     loadData();
     _scrollController.addListener(_scrollListener);
+  }
+  Future<void> _checkConsentAndInitFCM() async {
+    final prefs = await SharedPreferences.getInstance();
+    final consented = prefs.getBool("privacy_consent_v1") ?? false;
+
+    if (consented) {
+      // 개인정보 동의한 경우에만 FCM 초기화 & 토큰 구독
+      await _initializeFirebase();
+      setupMessageListener();
+      print("✅ 개인정보 동의함 → FCM 구독 진행");
+    } else {
+      print("❌ 개인정보 동의 안 함 → FCM 구독 막음");
+    }
   }
 
   @override

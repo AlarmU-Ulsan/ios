@@ -4,9 +4,12 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:notification_it/keyword.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // FCM 토큰 얻기
 
 import 'api_service.dart';
-import 'mainPage.dart';
+import 'consent_manager.dart';
+import 'keys.dart';
+import 'main.dart';
 
 class AlarmPage extends StatefulWidget {
   final String deviceId;
@@ -41,6 +44,18 @@ class _AlarmPageState extends State<AlarmPage> {
     "IT융합학부": ["IT융합전공", "AI융합전공"],
   };
 
+  /// ✅ FCM 토큰 등록
+  Future<void> _registerFcmTokenIfNeeded() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      print("📱 FCM Token: $token");
+      // 서버에 deviceId + token 등록 로직 필요시 추가
+    } catch (e) {
+      print("❌ FCM 토큰 등록 실패: $e");
+    }
+  }
+
+
   Widget SearchForm() {
     return Row(
       children: [
@@ -52,57 +67,78 @@ class _AlarmPageState extends State<AlarmPage> {
                 _searchText = value;
               });
             },
-            decoration: InputDecoration(
-                hintText: "알림 받을 학과를 입력해주세요",
-                hintStyle: TextStyle(color: Color(0xffA3A3A3)),
-                isDense: true,
-                contentPadding: EdgeInsets.only(bottom: 5),
-                focusedBorder: InputBorder.none,
-                enabledBorder: InputBorder.none),
+            decoration: const InputDecoration(
+              hintText: "알림 받을 학과를 입력해주세요",
+              hintStyle: TextStyle(color: Color(0xffA3A3A3)),
+              isDense: true,
+              contentPadding: EdgeInsets.only(bottom: 5),
+              focusedBorder: InputBorder.none,
+              enabledBorder: InputBorder.none,
+            ),
           ),
         ),
         Expanded(
-            flex: 1,
-            child: GestureDetector(
-                onTap: () {},
-                child: Text(
-                  '검색',
-                  style: TextStyle(color: Color(0xff009D72), fontWeight: FontWeight.bold),
-                )))
+          flex: 1,
+          child: GestureDetector(
+            onTap: () {},
+            child: const Text(
+              '검색',
+              style: TextStyle(
+                color: Color(0xff009D72),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
 
   Widget Selector(String major) {
     return Container(
-      margin: EdgeInsets.only(top: 30),
+      margin: const EdgeInsets.only(top: 30),
       child: Row(
         children: [
-          Text(
-            major,
-            style: TextStyle(fontSize: 17),
-          ),
-          Spacer(),
+          Text(major, style: const TextStyle(fontSize: 17)),
+          const Spacer(),
           GestureDetector(
-            onTap: () {
+            onTap: () async {
+              final consented = await ConsentManager.isConsented();
+
+              // ✅ 개인정보 동의 체크
+              if (!consented) {
+                final result = await ConsentManager.showPrivacyConsentSheet(context);
+                if (result == true) {
+                  await ConsentManager.setConsented(true);
+                  await _registerFcmTokenIfNeeded();
+                } else {
+                  return; // ❌ 동의 안 하면 아무 동작도 하지 않음
+                }
+              }
+
               setState(() {
-                if(_isSelectedList.contains(major)){
+                if (_isSelectedList.contains(major)) {
+                  // 해제
                   _unsubscribeMajor(major);
                   _isSelectedList.remove(major);
                 } else {
+                  // ✅ 구독 추가
                   _isSelectedList.add(major);
                   _subscribeMajor(major);
+
+                  // 👉 스위치도 자동 ON
+                  if (!_isChecked) {
+                    _isChecked = true;
+                    _saveAlarmState(true);
+                    showNotification('알림이 설정되었습니다');
+                  }
                 }
                 _saveSelectedMajors();
               });
             },
             child: _isSelectedList.contains(major)
-                ? SvgPicture.asset(
-                    'assets/icons/알림it_bell_O.svg',
-                  )
-                : SvgPicture.asset(
-                    'assets/icons/알림it_bell_X.svg',
-                  ),
+                ? SvgPicture.asset('assets/icons/알림it_bell_O.svg')
+                : SvgPicture.asset('assets/icons/알림it_bell_X.svg'),
           )
         ],
       ),
@@ -110,21 +146,18 @@ class _AlarmPageState extends State<AlarmPage> {
   }
 
   Future<void> showNotification(String text) async {
-    const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
-      'channel_id', // 채널 ID
-      '일반 알림', // 채널 이름
+    const androidDetails = AndroidNotificationDetails(
+      'channel_id',
+      '일반 알림',
       importance: Importance.high,
       priority: Priority.high,
     );
 
-    const NotificationDetails notificationDetails = NotificationDetails(
-      android: androidDetails,
-    );
+    const notificationDetails = NotificationDetails(android: androidDetails);
 
     await flutterLocalNotificationsPlugin.show(
-      0, // 알림 ID
-      '알림 설정', // 제목
+      0,
+      '알림 설정',
       text,
       notificationDetails,
     );
@@ -132,44 +165,36 @@ class _AlarmPageState extends State<AlarmPage> {
 
   Future<void> _subscribeMajor(String major) async {
     String deviceId = widget.deviceId;
-
-    final ApiService apiService = ApiService(url: "https://alarm-it.ulsan.ac.kr:$port/fcm/subscribe");
-
+    final apiService =
+    ApiService(url: "$port/fcm/subscribe");
     try {
-      // ✅ API 호출 및 응답 수신
       final response = await apiService.subscribeNotice(deviceId, major);
-      final message = response['message'] ?? '응답 메시지가 없습니다.';
-      print("📨 서버 응답: $message");
-
+      print("📨 서버 응답: ${response['message']}");
     } catch (e) {
       print("❌ 오류 발생: $e");
     }
-  } //전공 구독
+  }
+
   Future<void> _unsubscribeMajor(String major) async {
     String deviceId = widget.deviceId;
-
-    final ApiService apiService = ApiService(url: "https://alarm-it.ulsan.ac.kr:$port/fcm/subscribe");
-
+    final apiService =
+    ApiService(url: "$port/fcm/subscribe");
     try {
-      // ✅ API 호출 및 응답 수신
-      final response = await apiService.unsubscribeNotice(deviceId, major);
-
+      await apiService.unsubscribeNotice(deviceId, major);
     } catch (e) {
       print("❌ 오류 발생: $e");
     }
-  } //전공 삭제
+  }
 
   void _saveSelectedMajors() async {
     final prefs = await SharedPreferences.getInstance();
     prefs.setStringList('alram_list', _isSelectedList);
   }
 
-  void _loadSelectedMajoirs() async{
+  void _loadSelectedMajors() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getStringList('alram_list') ?? [];
-    setState(() {
-      _isSelectedList = saved.toList();
-    });
+    setState(() => _isSelectedList = saved);
   }
 
   void _saveAlarmState(bool value) async {
@@ -179,81 +204,47 @@ class _AlarmPageState extends State<AlarmPage> {
 
   void _loadAlarmState() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getBool("isAllAlarmOn") ?? true; // 기본값 true
-    setState(() {
-      _isChecked = saved;
-    });
-  }
-
-  Widget _header() {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            children: [
-              Center(
-                child: Text(
-                  '알림설정',
-                  style: TextStyle(
-                      color: Color(0xff009D72),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15),
-                ),
-              ),
-              SizedBox(
-                height: 8,
-              ),
-              Container(
-                height: 3,
-                color: Color(0xff009D72),
-              )
-            ],
-          ),
-        ),
-         Expanded(
-          child: Column(
-            children: [
-              Center(
-                child: Text(
-                  '',
-                ),
-              ),
-              SizedBox(
-                height: 8,
-              ),
-              Container(
-                height: 2,
-                color: Color(0xffA3A3A3),
-              )
-            ],
-          ),
-        ),
-      ],
-    );
+    final saved = prefs.getBool("isAllAlarmOn") ?? false;
+    setState(() => _isChecked = saved);
   }
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
-    _loadSelectedMajoirs();
+
     _loadAlarmState();
+
+    ConsentManager.isConsented().then((consented) async {
+      if (consented) {
+        // ✅ 동의한 경우에만 저장된 전공 목록 불러오기
+        _loadSelectedMajors();
+      } else {
+        // ❌ 동의 안 한 경우 → 모든 구독 해제 + 스위치 OFF
+        setState(() {
+          _isChecked = false;
+          _isSelectedList = [];
+        });
+        _saveAlarmState(false);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setStringList('alram_list', []); // 저장된 구독 초기화
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     List<Widget> filteredList = [];
     majorMap.forEach((faculty, majors) {
-      // 전공 중 검색 키워드가 포함된 게 있는지 확인
       final matchedMajors =
-          majors.where((m) => m.contains(_searchText)).toList();
+      majors.where((m) => m.contains(_searchText)).toList();
       if (matchedMajors.isNotEmpty) {
         filteredList.add(Text(faculty,
-            style: TextStyle(
+            style: const TextStyle(
                 color: Color(0xff009D72),
                 fontSize: 12,
                 fontWeight: FontWeight.bold)));
         filteredList.addAll(matchedMajors.map((major) => Selector(major)));
-        filteredList.add(SizedBox(height: 60));
+        filteredList.add(const SizedBox(height: 60));
       }
     });
 
@@ -264,121 +255,88 @@ class _AlarmPageState extends State<AlarmPage> {
         children: [
           // 상단: 뒤로가기 + 스위치
           Container(
-            padding: EdgeInsets.fromLTRB(30, 80, 30, 0),
+            padding: const EdgeInsets.fromLTRB(30, 80, 30, 0),
             child: Row(
               children: [
                 GestureDetector(
-                  onTap: () {
-                    Navigator.pop(context);
-                  },
+                  onTap: () => Navigator.pop(context),
                   child: Row(
-                    children: [
+                    children: const [
                       Icon(Icons.arrow_back_ios_new_sharp, size: 20),
                       SizedBox(width: 5),
-                      Text(
-                        '알림 설정',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 20),
-                      ),
+                      Text('알림 설정',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 20)),
                     ],
                   ),
                 ),
-                Spacer(),
+                const Spacer(),
                 CupertinoSwitch(
                   value: _isChecked,
-                  activeColor: Color(0xFF009D72),
+                  activeColor: const Color(0xFF009D72),
                   onChanged: (bool? value) async {
-                    setState(() {
-                      _isChecked = value ?? false;
-                    });
+                    final consented = await ConsentManager.isConsented();
 
+                    // ✅ 동의 안 한 상태에서 켜려는 경우
+                    if ((value ?? false) && !consented) {
+                      final result = await ConsentManager.showPrivacyConsentSheet(context);
+                      if (result == true) {
+                        await ConsentManager.setConsented(true);
+                        await _registerFcmTokenIfNeeded();
+                        setState(() => _isChecked = true);
+                        _saveAlarmState(true);
+
+                        showNotification('알림이 설정되었습니다');
+                        for (String major in _isSelectedList) {
+                          await _subscribeMajor(major);
+                        }
+                      } else {
+                        setState(() => _isChecked = false);
+                        _saveAlarmState(false);
+                      }
+                      return;
+                    }
+
+                    // ✅ 이미 동의했거나 OFF로 내리는 경우
+                    setState(() => _isChecked = value ?? false);
                     _saveAlarmState(_isChecked);
 
                     if (_isChecked) {
                       showNotification('알림이 설정되었습니다');
-                      // 전체 구독
                       for (String major in _isSelectedList) {
-                        try {
-                          await _subscribeMajor(major);
-                        } catch (e) {
-                          print("❌ $major 구독 실패: $e");
-                        }
+                        await _subscribeMajor(major);
                       }
                     } else {
                       showNotification('알림이 해제되었습니다');
-                      // 전체 구독 해제
                       for (String major in _isSelectedList) {
-                        try {
-                          await _unsubscribeMajor(major);
-                        } catch (e) {
-                          print("❌ $major 구독 해제 실패: $e");
-                        }
+                        await _unsubscribeMajor(major);
                       }
                     }
                   },
-                )
+                ),
               ],
             ),
           ),
-          SizedBox(height: 30),
-          _header(),
-          //if (!_iskeyword)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(30, 0, 30, 25),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      height: 50,
+          const SizedBox(height: 30),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(30, 0, 30, 25),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SearchForm(),
+                  Container(height: 2, color: const Color(0xff009D72)),
+                  const SizedBox(height: 40),
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.zero,
+                      children: filteredList,
                     ),
-                    SearchForm(),
-                    Container(height: 2, color: Color(0xff009D72)),
-                    SizedBox(height: 40),
-                    Expanded(
-                      child: ListView(
-                        padding: EdgeInsets.zero,
-                        children: filteredList,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          /*
-          if(_iskeyword)
-          Expanded(
-              child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Row(
-                  children: [
-                    SvgPicture.asset(
-                      'assets/icons/알림it_bell_O.svg',
-                    ),
-                    SizedBox(width: 15,),
-                    Text('알림 받는 키워드 n개', style: TextStyle(fontWeight: FontWeight.bold),),
-                    Spacer(),
-                    GestureDetector(
-                      onTap: (){
-                        Navigator.push(context, MaterialPageRoute(builder: (context)=>KeywordPage()));
-                      },
-                      child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10,vertical: 3),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(30),
-                          color: Color(0xffEEEEEE),
-                        ),
-                        child: Text('키워드 설정'),
-                      ),
-                    )
-                  ],
-                ),
-              )
-            ],
-          ))*/
+          ),
         ],
       ),
     );
