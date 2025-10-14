@@ -58,7 +58,16 @@ class NotificationIT extends StatelessWidget {
   /// 최초 실행 여부 확인
   Future<bool> isFirstLaunch() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('hasSeenIntro') ?? true; // 기본값: true = 최초 실행
+    bool? hasSeenIntro = prefs.getBool('hasSeenIntro');
+
+    if (hasSeenIntro == null || hasSeenIntro == false) {
+      // 최초 실행일 경우 → true 반환하고 값 저장
+      await prefs.setBool('hasSeenIntro', true);
+      return true;
+    } else {
+      // 이미 실행한 적 있음 → false 반환
+      return false;
+    }
   }
 
   @override
