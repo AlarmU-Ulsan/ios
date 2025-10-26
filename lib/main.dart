@@ -52,22 +52,33 @@ void main() async {
   runApp(const NotificationIT());
 }
 
-class NotificationIT extends StatelessWidget {
+class NotificationIT extends StatefulWidget {
   const NotificationIT({super.key});
+  @override
+  State<NotificationIT> createState() => _NotificationITState();
+}
 
-  /// 최초 실행 여부 확인
+class _NotificationITState extends State<NotificationIT> {
+  late final Future<bool> _firstLaunchFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _firstLaunchFuture = isFirstLaunch(); // 한 번만 실행
+  }
+
   Future<bool> isFirstLaunch() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    bool? hasSeenIntro = prefs.getBool('hasSeenIntro');
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenIntro = prefs.getBool('hasSeenIntro');
+    debugPrint('👀 hasSeenIntro(before): $hasSeenIntro');
 
-    if (hasSeenIntro == null || hasSeenIntro == false) {
-      // 최초 실행일 경우 → true 반환하고 값 저장
+    if (hasSeenIntro != true) {
       await prefs.setBool('hasSeenIntro', true);
-      return true;
-    } else {
-      // 이미 실행한 적 있음 → false 반환
-      return false;
+      final check = prefs.getBool('hasSeenIntro');
+      debugPrint('✅ hasSeenIntro(after set): $check');
+      return true; // 첫 실행
     }
+    return false;  // 이후 실행
   }
 
   @override
@@ -77,19 +88,10 @@ class NotificationIT extends StatelessWidget {
       title: '알림IT',
       theme: ThemeData(primarySwatch: Colors.green),
       home: FutureBuilder<bool>(
-        future: isFirstLaunch(),
+        future: _firstLaunchFuture,
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const SizedBox(); // 로딩 대기
-          }
-
-          /// 최초 실행 → IntroPage
-          if (snapshot.data == true) {
-            return const IntroPage();
-          }
-
-          /// 이후 실행 → Splash → MainPage
-          return SplashScreen();
+          if (!snapshot.hasData) return const SizedBox();
+          return snapshot.data! ? const IntroPage() : SplashScreen();
         },
       ),
     );
