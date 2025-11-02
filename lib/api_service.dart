@@ -7,7 +7,46 @@ class ApiService {
   final String url;
 
   ApiService({required this.url});
+  Future<Map<String, dynamic>> checkAppVersion() async {
+    const String platform = "ios";  // 타입 고정
+    final String versionUrl = "$url/api/version/$platform";
 
+    print('\n📡 [버전 확인 요청]');
+    print('🌐 요청 URL: $versionUrl');
+
+    try {
+      final response = await http.get(Uri.parse(versionUrl));
+
+      print("🔵 상태코드: ${response.statusCode}");
+      print("📨 응답 바디: ${utf8.decode(response.bodyBytes)}");
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonData =
+        json.decode(utf8.decode(response.bodyBytes));
+
+        if (jsonData['isSuccess'] == false) {
+          throw Exception("버전 정보 요청 실패: ${jsonData['message']}");
+        }
+
+        final result = jsonData['result'];
+        final String latest = result['latestVersion'];
+        final String minimum = result['minimumVersion'];
+        final String link = result['link'];
+
+        print("✅ 최신 버전: $latest / 최소 버전: $minimum");
+
+        return {
+          "latestVersion": latest,
+          "minimumVersion": minimum,
+          "link": link,
+        };
+      } else {
+        throw Exception("HTTP 오류: ${response.statusCode}");
+      }
+    } catch (e) {
+      throw Exception("버전 확인 중 오류 발생: $e");
+    }
+  } //버전 체크
   Future<List<Notice>> fetchNotices() async {
     try {
       final response = await http.get(Uri.parse(url));

@@ -522,7 +522,7 @@ class _MainPageState extends State<MainPage> {
           "$port/notice?type=전체&page=0&major=$selectedMajor");
       final ApiService apiServiceImportant = ApiService(
           url:
-          "$port/notice?type=중요 공지&page=0&major=$selectedMajor");
+          "$port/notice?type=공지&page=0&major=$selectedMajor");
       List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
       List<Notice> notices;
 
