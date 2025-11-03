@@ -18,8 +18,6 @@ class IntroPageState extends State<IntroPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final prefs = await SharedPreferences.getInstance();
-      // 👉 기존 clear()는 유지 여부 고민 필요 (앱 첫 실행이면 O, 아니면 데이터 날려버리니 위험)
-      await prefs.clear();
 
       final consented = await ConsentManager.isConsented();
 
