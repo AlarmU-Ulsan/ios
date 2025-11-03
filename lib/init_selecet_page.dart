@@ -93,6 +93,26 @@ class _InitSelectPage1State extends State<InitSelectPage1>{
     final prefs = await SharedPreferences.getInstance();
     prefs.setStringList('alram_list', _isSelectedList);
   }
+  Future<void> _checkFirstInit() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedMajors = prefs.getStringList(kAlarmListKey);
+
+    // ✅ 이미 학과 저장되어 있으면 MainPage로 바로 이동
+    if (savedMajors != null && savedMajors.isNotEmpty && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MainPage(selectedMajor: savedMajors.first),
+        ),
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFirstInit();
+  }
 
   @override
   Widget build(BuildContext context){
@@ -280,10 +300,25 @@ class _InitSelectPage2State extends State<InitSelectPage2>{
     });
   }
 
+  Future<void> _checkIfAlreadyCompleted() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedMajors = prefs.getStringList(kAlarmListKey);
+
+    if (savedMajors != null && savedMajors.isNotEmpty && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MainPage(selectedMajor: widget.major, selectedAlram: savedMajors),
+        ),
+      );
+    }
+  }
+
   @override
   void initState(){
     super.initState();
     _loadSelectedMajoirs();
+    _checkIfAlreadyCompleted();
   }
 
   @override
