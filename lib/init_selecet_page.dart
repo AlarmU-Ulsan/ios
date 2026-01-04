@@ -17,7 +17,6 @@ class InitSelectPage1 extends StatefulWidget{
 class _InitSelectPage1State extends State<InitSelectPage1>{
   String _isSelected = '';
   String _searchText = '';
-  final List<String> _isSelectedList = [];
 
   final Map<String, List<String>> majorMap = {
     "미래엔지니어링융합대학": [
@@ -63,19 +62,18 @@ class _InitSelectPage1State extends State<InitSelectPage1>{
       margin: EdgeInsets.only(top: 36),
       child: Row(
         children: [Text(name,style: TextStyle( fontSize: 17),), Spacer(), GestureDetector(
-      onTap: () {
-        setState(() {
-          if (_isSelected==name){
-            _isSelected = '';
-            _isSelectedList.remove(name);
-          }else{
-          _isSelected=name;
-          _isSelectedList.add(name);
-          }
-        });
-        print(_isSelectedList);
-        _saveSelectedMajors();
-      },
+          onTap: () async {
+            setState(() {
+              _isSelected = (_isSelected == name) ? '' : name;
+            });
+
+            if (_isSelected.isNotEmpty) {
+              await _saveMainMajor(_isSelected);
+            }else {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove(kMainMajorKey);
+            }
+          },
       child: _isSelected==name
           ? SvgPicture.asset(
         'assets/icons/알림it_checkButton_O.svg',
@@ -89,29 +87,14 @@ class _InitSelectPage1State extends State<InitSelectPage1>{
     );
   }
 
-  void _saveSelectedMajors() async {
+  Future<void> _saveMainMajor(String major) async {
     final prefs = await SharedPreferences.getInstance();
-    prefs.setStringList('alram_list', _isSelectedList);
-  }
-  Future<void> _checkFirstInit() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedMajors = prefs.getStringList(kAlarmListKey);
-
-    // ✅ 이미 학과 저장되어 있으면 MainPage로 바로 이동
-    if (savedMajors != null && savedMajors.isNotEmpty && mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MainPage(selectedMajor: savedMajors.first),
-        ),
-      );
-    }
+    await prefs.setString(kMainMajorKey, major);
   }
 
   @override
   void initState() {
     super.initState();
-    _checkFirstInit();
   }
 
   @override
@@ -153,7 +136,8 @@ class _InitSelectPage1State extends State<InitSelectPage1>{
                     children: [
                       if (_isSelected != '') ...[
                         TextButton(
-                          onPressed: () {
+                          onPressed: () async {
+                            await _saveMainMajor(_isSelected);
                             if (widget.skipSecond) {
                               // 바로 MainPage
                               Navigator.pushReplacement(
@@ -261,16 +245,15 @@ class _InitSelectPage2State extends State<InitSelectPage2>{
       margin: EdgeInsets.only(top: 36),
       child: Row(
         children: [Text(name,style: TextStyle( fontSize: 17),), Spacer(), GestureDetector(
-          onTap: () {
+          onTap: () async{
             setState(() {
               if (_isSelectedList.contains(name)){
                 _isSelectedList.remove(name);
-                _saveSelectedMajors();
               }else{
                 _isSelectedList.add(name);
-                _saveSelectedMajors();
               }
             });
+            await _saveSelectedMajors();
             print(_isSelectedList);
           },
           child: _isSelectedList.contains(name)
@@ -286,39 +269,33 @@ class _InitSelectPage2State extends State<InitSelectPage2>{
     );
   }
 
-  void _saveSelectedMajors() async {
+  Future<void> _saveSelectedMajors() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(kAlarmListKey, _isSelectedList);
-    await prefs.setBool(kIsAllAlarmOnKey, _isSelectedList.isNotEmpty);
+    await prefs.setStringList(kAlarmMajorsKey, _isSelectedList);
   }
 
-  void _loadSelectedMajoirs() async{
+  Future<void> _loadSelectedMajors() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList('alram_list') ?? [];
+
+    final savedAlarmMajors = prefs.getStringList(kAlarmMajorsKey);
+    final mainMajor = prefs.getString(kMainMajorKey);
+
     setState(() {
-      _isSelectedList = saved.toList();
+      if (savedAlarmMajors != null && savedAlarmMajors.isNotEmpty) {
+        _isSelectedList = savedAlarmMajors.toList();
+      } else if (mainMajor != null && mainMajor.isNotEmpty) {
+        _isSelectedList = [mainMajor]; // Page1 대표전공을 초기값으로
+      } else {
+        _isSelectedList = [];
+      }
     });
   }
 
-  Future<void> _checkIfAlreadyCompleted() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedMajors = prefs.getStringList(kAlarmListKey);
-
-    if (savedMajors != null && savedMajors.isNotEmpty && mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MainPage(selectedMajor: widget.major, selectedAlram: savedMajors),
-        ),
-      );
-    }
-  }
 
   @override
   void initState(){
     super.initState();
-    _loadSelectedMajoirs();
-    _checkIfAlreadyCompleted();
+    _loadSelectedMajors();
   }
 
   @override
@@ -362,7 +339,7 @@ class _InitSelectPage2State extends State<InitSelectPage2>{
                     children: [
                       TextButton(
                           onPressed: () async {
-                            _saveSelectedMajors();
+                            await _saveSelectedMajors();
                         Navigator.push(context, MaterialPageRoute(builder: (context)=>MainPage(selectedMajor: widget.major,selectedAlram: _isSelectedList,)));
                       }, child: Text('완료', style: TextStyle(fontWeight:FontWeight.bold,color: Color(0xff009D72)),)),
                       SizedBox(height: 40,)

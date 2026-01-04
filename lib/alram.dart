@@ -2,9 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:notification_it/keyword.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // FCM 토큰 얻기
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'api_service.dart';
 import 'consent_manager.dart';
@@ -30,17 +29,13 @@ class _AlarmPageState extends State<AlarmPage> {
     "미래엔지니어링융합대학": [
       "ICT융합학부",
       '미래모빌리티공학부',
-      //'에너지화학공학부',
       '신소재·반도체융합학부',
       '전기전자융합학부',
-      //'바이오매디컬헬스학부'
     ],
     '스마트도시융합대학': ['건축·도시환경학부', '디자인융합학부', '스포츠과학부'],
     '경영·공공정책대학': ['경영경제융합학부'],
     '인문예술대학': ['글로벌인문학부', '예술학부'],
-    //'의과대학': ['의예과[의학과]', '간호학과'],
     '아산아너스칼리지': ['자율전공학부'],
-    //'울산대학교': ['SW사업단', 'U-STAR'],
     "IT융합학부": ["IT융합전공", "AI융합전공"],
   };
 
@@ -54,7 +49,6 @@ class _AlarmPageState extends State<AlarmPage> {
       print("❌ FCM 토큰 등록 실패: $e");
     }
   }
-
 
   Widget SearchForm() {
     return Row(
@@ -112,28 +106,40 @@ class _AlarmPageState extends State<AlarmPage> {
                   await ConsentManager.setConsented(true);
                   await _registerFcmTokenIfNeeded();
                 } else {
-                  return; // ❌ 동의 안 하면 아무 동작도 하지 않음
+                  return;
                 }
               }
 
+              // ✅ 스위치 OFF면, 항목 터치 자체를 막고 싶다면 여기서 return
+              // if (!_isChecked) return;
+
               setState(() {
                 if (_isSelectedList.contains(major)) {
-                  // 해제
-                  _unsubscribeMajor(major);
                   _isSelectedList.remove(major);
                 } else {
-                  // ✅ 구독 추가
                   _isSelectedList.add(major);
-                  _subscribeMajor(major);
 
-                  // 👉 스위치도 자동 ON
+                  // 👉 하나라도 선택하면 스위치 자동 ON (원하면 유지)
                   if (!_isChecked) {
                     _isChecked = true;
-                    _saveAlarmState(true);
                     showNotification('알림이 설정되었습니다');
                   }
                 }
-                _saveSelectedMajors();
+              });
+
+              // ✅ 저장 + 구독/해제는 setState 바깥에서 await로 처리 (UI 안정)
+              await _saveSelectedMajors();
+
+              if (_isSelectedList.contains(major)) {
+                await _subscribeMajor(major);
+              } else {
+                await _unsubscribeMajor(major);
+              }
+
+              // ✅ bell on/off 기준 업데이트: 리스트 비었으면 off
+              if (!mounted) return;
+              setState(() {
+                _isChecked = _isSelectedList.isNotEmpty;
               });
             },
             child: _isSelectedList.contains(major)
@@ -164,9 +170,8 @@ class _AlarmPageState extends State<AlarmPage> {
   }
 
   Future<void> _subscribeMajor(String major) async {
-    String deviceId = widget.deviceId;
-    final apiService =
-    ApiService(url: "$port/fcm/subscribe");
+    final deviceId = widget.deviceId;
+    final apiService = ApiService(url: "$port/fcm/subscribe");
     try {
       final response = await apiService.subscribeNotice(deviceId, major);
       print("📨 서버 응답: ${response['message']}");
@@ -176,9 +181,8 @@ class _AlarmPageState extends State<AlarmPage> {
   }
 
   Future<void> _unsubscribeMajor(String major) async {
-    String deviceId = widget.deviceId;
-    final apiService =
-    ApiService(url: "$port/fcm/subscribe");
+    final deviceId = widget.deviceId;
+    final apiService = ApiService(url: "$port/fcm/subscribe");
     try {
       await apiService.unsubscribeNotice(deviceId, major);
     } catch (e) {
@@ -186,47 +190,43 @@ class _AlarmPageState extends State<AlarmPage> {
     }
   }
 
-  void _saveSelectedMajors() async {
+  // ✅ 중요: InitSelectPage2와 같은 키(kAlarmMajorsKey)로 통일
+  Future<void> _saveSelectedMajors() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(kAlarmListKey, _isSelectedList);
+    await prefs.setStringList(kAlarmMajorsKey, _isSelectedList);
   }
 
-  void _loadSelectedMajors() async {
+  // ✅ 중요: InitSelectPage2에서 저장된 값으로 초기화
+  Future<void> _loadFromInitPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList(kAlarmListKey) ?? [];
-    setState(() => _isSelectedList = saved);
-  }
 
-  void _saveAlarmState(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(kIsAllAlarmOnKey, value);
-  }
+    final savedAlarmMajors = prefs.getStringList(kAlarmMajorsKey) ?? [];
 
-  void _loadAlarmState() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getBool(kIsAllAlarmOnKey) ?? false;
-    setState(() => _isChecked = saved);
+    if (!mounted) return;
+    setState(() {
+      _isSelectedList = savedAlarmMajors;
+      _isChecked = savedAlarmMajors.isNotEmpty; // ✅ 요구사항: init에서 설정했으면 ON
+    });
   }
 
   @override
   void initState() {
     super.initState();
 
-    _loadAlarmState();
-
+    // ✅ 동의한 경우에만 init 저장값 반영
     ConsentManager.isConsented().then((consented) async {
       if (consented) {
-        // ✅ 동의한 경우에만 저장된 전공 목록 불러오기
-        _loadSelectedMajors();
+        await _loadFromInitPrefs();
       } else {
-        // ❌ 동의 안 한 경우 → 모든 구독 해제 + 스위치 OFF
+        // ❌ 동의 안 한 경우 → OFF + 선택값 없음 + 저장도 비움
+        if (!mounted) return;
         setState(() {
           _isChecked = false;
           _isSelectedList = [];
         });
-        _saveAlarmState(false);
+
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setStringList('alram_list', []); // 저장된 구독 초기화
+        await prefs.setStringList(kAlarmMajorsKey, []);
       }
     });
   }
@@ -235,14 +235,16 @@ class _AlarmPageState extends State<AlarmPage> {
   Widget build(BuildContext context) {
     List<Widget> filteredList = [];
     majorMap.forEach((faculty, majors) {
-      final matchedMajors =
-      majors.where((m) => m.contains(_searchText)).toList();
+      final matchedMajors = majors.where((m) => m.contains(_searchText)).toList();
       if (matchedMajors.isNotEmpty) {
-        filteredList.add(Text(faculty,
-            style: const TextStyle(
-                color: Color(0xff009D72),
-                fontSize: 12,
-                fontWeight: FontWeight.bold)));
+        filteredList.add(Text(
+          faculty,
+          style: const TextStyle(
+            color: Color(0xff009D72),
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ));
         filteredList.addAll(matchedMajors.map((major) => Selector(major)));
         filteredList.add(const SizedBox(height: 60));
       }
@@ -253,7 +255,6 @@ class _AlarmPageState extends State<AlarmPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 상단: 뒤로가기 + 스위치
           Container(
             padding: const EdgeInsets.fromLTRB(30, 80, 30, 0),
             child: Row(
@@ -264,9 +265,10 @@ class _AlarmPageState extends State<AlarmPage> {
                     children: const [
                       Icon(Icons.arrow_back_ios_new_sharp, size: 20),
                       SizedBox(width: 5),
-                      Text('알림 설정',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 20)),
+                      Text(
+                        '알림 설정',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                      ),
                     ],
                   ),
                 ),
@@ -279,38 +281,50 @@ class _AlarmPageState extends State<AlarmPage> {
 
                     // ✅ 동의 안 한 상태에서 켜려는 경우
                     if ((value ?? false) && !consented) {
-                      final result = await ConsentManager.showPrivacyConsentSheet(context);
+                      final result =
+                      await ConsentManager.showPrivacyConsentSheet(context);
                       if (result == true) {
                         await ConsentManager.setConsented(true);
                         await _registerFcmTokenIfNeeded();
                         setState(() => _isChecked = true);
-                        _saveAlarmState(true);
-
                         showNotification('알림이 설정되었습니다');
+
+                        // 켜면 현재 선택된 전공들 구독
                         for (String major in _isSelectedList) {
                           await _subscribeMajor(major);
                         }
                       } else {
                         setState(() => _isChecked = false);
-                        _saveAlarmState(false);
                       }
                       return;
                     }
 
-                    // ✅ 이미 동의했거나 OFF로 내리는 경우
-                    setState(() => _isChecked = value ?? false);
-                    _saveAlarmState(_isChecked);
+                    // ✅ OFF로 내리는 경우: 전체 해제 + 리스트 비움 + 저장 비움
+                    final next = value ?? false;
 
-                    if (_isChecked) {
-                      showNotification('알림이 설정되었습니다');
-                      for (String major in _isSelectedList) {
-                        await _subscribeMajor(major);
-                      }
-                    } else {
+                    if (!next) {
                       showNotification('알림이 해제되었습니다');
+
                       for (String major in _isSelectedList) {
                         await _unsubscribeMajor(major);
                       }
+
+                      if (!mounted) return;
+                      setState(() {
+                        _isChecked = false;
+                        _isSelectedList = [];
+                      });
+
+                      await _saveSelectedMajors();
+                      return;
+                    }
+
+                    // ✅ ON으로 켜는 경우: 현재 리스트 구독 (리스트가 비어있으면 그냥 ON만)
+                    setState(() => _isChecked = true);
+                    showNotification('알림이 설정되었습니다');
+
+                    for (String major in _isSelectedList) {
+                      await _subscribeMajor(major);
                     }
                   },
                 ),

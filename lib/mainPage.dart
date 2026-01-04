@@ -17,7 +17,6 @@ import 'splashScreen.dart';
 import 'init_selecet_page.dart';
 import 'list_elements.dart';
 import 'api_service.dart';
-import 'intro.dart';
 import 'keys.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -28,7 +27,7 @@ class MainPage extends StatefulWidget {
     super.key,
     List<String>? selectedAlram,
     this.selectedMajor = 'IT융합전공',
-    this.changeMajor = false
+    this.changeMajor = false,
   }) : selectedAlram = selectedAlram ?? ['IT융합전공'];
 
   final List<String> selectedAlram;
@@ -44,15 +43,21 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  //북마크
-  BookmarkManager bookmarkManager = BookmarkManager(); //북마크 관리
+  // 북마크
+  BookmarkManager bookmarkManager = BookmarkManager();
 
   int pageNum = 0;
   String type = '전체';
-  late String selectedMajor;
+
+  // ✅ late 제거 + 기본값 세팅 (앱 재시작 시 초기화 꼬임/late 크래시 방지)
+  String selectedMajor = 'IT융합전공';
+
+  // ✅ prefs(alarm_majors) 값을 state로 들고 있게 (FCM 구독/벨 상태 일관성)
+  List<String> selectedAlarmMajors = [];
+
   List<ElementWidget> elements = [];
 
-  //개인정보
+  // 개인정보
   Future<bool?> showPrivacyConsentBottomSheet(BuildContext context) {
     bool checked = true;
 
@@ -105,7 +110,8 @@ class _MainPageState extends State<MainPage> {
                             backgroundColor: const Color(0xffE9E9E9),
                           ),
                           onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('닫기', style: TextStyle(color: Colors.black)),
+                          child: const Text('닫기',
+                              style: TextStyle(color: Colors.black)),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -128,32 +134,34 @@ class _MainPageState extends State<MainPage> {
       },
     );
   }
-  bool _consented = false;
 
-  //알림
+  // 알림
+  bool selected_bell = false; // bell 상태는 prefs 기반으로 세팅
   Widget _bellIcon() {
-    bool isSelected_bell = selected_bell;
     return GestureDetector(
       onTap: () async {
         String deviceID = await getDeviceId();
-        Navigator.push(context, MaterialPageRoute(builder: (context)=>AlarmPage(deviceId: deviceID,)));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => AlarmPage(deviceId: deviceID)),
+        );
       },
-      child: (isSelected_bell)
-          ? SvgPicture.asset(
-        'assets/icons/알림it_bell.svg',
-      )
-          : SvgPicture.asset(
-        'assets/icons/알림it_bell.svg',
-      ),
+      child: selected_bell
+          ? SvgPicture.asset('assets/icons/알림it_bell.svg')
+          : SvgPicture.asset('assets/icons/알림it_bell_f.svg'),
     );
   }
+
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+
   Future<void> _initializeFirebase() async {
-    // Firebase 초기화
-    await Firebase.initializeApp();
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
     print("Firebase 초기화 완료");
 
-    // iOS에서 권한 요청
     if (Platform.isIOS) {
       await _messaging.requestPermission(
         alert: true,
@@ -162,38 +170,36 @@ class _MainPageState extends State<MainPage> {
       );
     }
 
-    // APNS 토큰 가져오기 (iOS에서만)
     String? apnsToken = await _messaging.getAPNSToken();
-    if (apnsToken != null){
-      print("🔹 APNS Token is available");}
+    if (apnsToken != null) {
+      print("🔹 APNS Token is available");
+    }
 
-    // APNS 토큰이 null이면 알림을 사용할 수 없음
     if (apnsToken == null) {
       print("⚠️ APNS 토큰을 가져올 수 없습니다.");
       return;
     }
 
-    // FCM 토큰 받기
     fcmToken = await _messaging.getToken();
     if (fcmToken != null) {
-      print("🔹 FCM Token is available");}
+      print("🔹 FCM Token is available");
+    }
 
-    // FCM API 등록하기
     await _fcmPost();
 
-    // 전공 구독하기
-    if(widget.selectedMajor != null){
+    // ✅ 구독은 widget.selectedAlram이 아니라 "prefs에서 읽은 알림 전공 리스트" 기준으로
+    if (selectedAlarmMajors.isNotEmpty) {
       await _subscribeMajor();
-    }else{print('구독한 전공이 없습니다!!');}
+    } else {
+      print('구독한 전공이 없습니다!!');
+    }
   }
+
   void setupMessageListener() {
     print('setupmessageListener 함수 정상 적용');
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('✅ 수신 성공');
       print('🔹 message: ${message.toMap()}');
-      print('🔸 title: ${message.notification?.title}');
-      print('🔸 body: ${message.notification?.body}');
-      print('🔸 data: ${message.data}');
 
       flutterLocalNotificationsPlugin.show(
         0,
@@ -208,11 +214,10 @@ class _MainPageState extends State<MainPage> {
             priority: Priority.high,
           ),
         ),
-        payload: message.data['link'],  // 알림 클릭 시 전달할 데이터 (예: 링크)
+        payload: message.data['link'],
       );
     });
 
-    // 알림 클릭 시 처리 (앱이 백그라운드 또는 종료 상태에서)
     flutterLocalNotificationsPlugin.initialize(
       InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
@@ -221,21 +226,19 @@ class _MainPageState extends State<MainPage> {
       onDidReceiveNotificationResponse: (NotificationResponse response) {
         final payload = response.payload;
         if (payload != null) {
-          // TODO: payload를 이용해 링크 열기, 화면 이동 등 처리
           print("🔔 알림 클릭 시 payload: $payload");
         }
       },
     );
 
-    // 앱이 완전히 종료된 상태에서 알림 클릭 시 getInitialMessage 확인도 필요
     FirebaseMessaging.instance.getInitialMessage().then((message) {
       if (message != null) {
         final link = message.data['link'];
         print("앱 종료 상태에서 알림 클릭, 링크: $link");
-        // TODO: 링크를 이용해 화면 이동 처리
       }
     });
   }
+
   Future<String> getDeviceId() async {
     final deviceInfo = DeviceInfoPlugin();
 
@@ -245,32 +248,37 @@ class _MainPageState extends State<MainPage> {
     } else {
       return "unsupported_platform";
     }
-  } //디바이스 ID 가져오기
+  }
+
+  String? fcmToken;
+
   Future<void> _fcmPost() async {
     print('\n===== 기기등록 API =====');
     if (fcmToken == null) {
       print("⚠️ FCM 토큰이 존재하지 않습니다.");
       return;
     }
-    String deviceId = await getDeviceId();
 
+    String deviceId = await getDeviceId();
     final ApiService apiService = ApiService(url: "$port/fcm/fcm_token");
 
     try {
-      // ✅ API 호출 및 응답 수신
       final response = await apiService.postFCMToken(deviceId, fcmToken!);
       final message = response['message'] ?? '응답 메시지가 없습니다.';
       print("📨 서버 응답: $message");
-
     } catch (e) {
       print("❌ 오류 발생: $e");
       showNotification("서버 요청 중 오류가 발생했습니다.");
     }
-  } //fcm 등록
+  }
+
   Future<void> _subscribeMajor() async {
     print('\n===== 전공구독 API =====');
-    final List<String> majors = widget.selectedAlram;
+
+    // ✅ prefs 기반 리스트로 구독
+    final List<String> majors = selectedAlarmMajors;
     print('구독요청 전공: $majors');
+
     String deviceId = await getDeviceId();
     final ApiService apiService = ApiService(url: "$port/fcm/subscribe");
 
@@ -287,8 +295,6 @@ class _MainPageState extends State<MainPage> {
       }
     }
 
-
-    // ✅ UI 상태 업데이트 (모든 구독 성공 시만 알림 아이콘 상태 변경)
     if (!mounted) return;
     if (allSuccess) {
       setState(() {
@@ -297,57 +303,54 @@ class _MainPageState extends State<MainPage> {
     } else {
       showNotification("일부 전공 구독에 실패했습니다.");
     }
-  } //전공 구독
-  bool selected_bell = false; //알림 on/off
-  String? fcmToken;
+  }
+
   Future<void> showNotification(String text) async {
-    const AndroidNotificationDetails androidDetails =
-    AndroidNotificationDetails(
-      'channel_id', // 채널 ID
-      '일반 알림', // 채널 이름
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'channel_id',
+      '일반 알림',
       importance: Importance.high,
       priority: Priority.high,
     );
 
-    const NotificationDetails notificationDetails = NotificationDetails(
-      android: androidDetails,
-    );
+    const NotificationDetails notificationDetails =
+    NotificationDetails(android: androidDetails);
 
     await flutterLocalNotificationsPlugin.show(
-      0, // 알림 ID
-      '알림 설정', // 제목
+      0,
+      '알림 설정',
       text,
       notificationDetails,
     );
   }
 
-
-  //검색창
+  // 검색
   bool isTextFieldVisible = true;
   final TextEditingController _controller = TextEditingController();
-  String searchQuery = ''; //검색어 저장 변수
+  String searchQuery = '';
+
   void _onSearchChanged(String query) {
-    if (query.length < 2) return; // 너무 짧은 검색어는 요청하지 않음
+    if (query.length < 2) return;
     _fetchSearchResults(query);
   }
+
   Future<void> _fetchSearchResults(String keyword) async {
     if (isLoading || !mounted) return;
-    setState(() {
-      isLoading = true;
-    });
-    try {
-      final ApiService apiServiceSearch = ApiService(url:
-      "$port/search?keyWord=$keyword&major=$selectedMajor&page=0");
-      List<Notice> notices;
+    setState(() => isLoading = true);
 
-      notices = await apiServiceSearch.fetchNotices();
+    try {
+      final ApiService apiServiceSearch = ApiService(
+        url: "$port/search?keyWord=$keyword&major=$selectedMajor&page=0",
+      );
+
+      final notices = await apiServiceSearch.fetchNotices();
 
       for (final n in notices) {
         _noticeCache[n.id] = n;
       }
 
       if (!mounted) return;
-      List<ElementWidget> fetchedElements = notices.map((notice) {
+      final fetchedElements = notices.map((notice) {
         return ElementWidget(
           id: notice.id,
           title: notice.title,
@@ -359,19 +362,21 @@ class _MainPageState extends State<MainPage> {
       }).toList();
 
       setState(() {
-        elements = fetchedElements; // 새로운 데이터를 elements에 할당
-        isLoading = false; // 로딩 완료
+        elements = fetchedElements;
+        isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        isLoading = false; // 오류 발생 시 로딩 종료
-      });
+      setState(() => isLoading = false);
       print('데이터 로드 실패: $e');
     }
   }
 
-  //필터 버튼
+  // 필터
+  int selectedIndex = 0;
+  bool isLoading = false;
+  int _missingBookmarksInCache = 0;
+
   Widget _allInfoButton() {
     bool isSelected = selectedIndex == 0;
 
@@ -385,17 +390,16 @@ class _MainPageState extends State<MainPage> {
             selectedIndex = 0;
             pageNum = 0;
             type = '전체';
-            loadData();
           });
+          loadData();
         },
         child: SvgPicture.asset(
-          isSelected
-              ? 'assets/icons/알림it_전체_O.svg'
-              : 'assets/icons/알림it_전체_X.svg',
+          isSelected ? 'assets/icons/알림it_전체_O.svg' : 'assets/icons/알림it_전체_X.svg',
         ),
       ),
     );
   }
+
   Widget _importantInfoButton() {
     bool isSelected = selectedIndex == 1;
 
@@ -409,17 +413,16 @@ class _MainPageState extends State<MainPage> {
             elements = [];
             pageNum = 0;
             type = '중요 공지';
-            loadData();
           });
+          loadData();
         },
         child: SvgPicture.asset(
-          isSelected
-              ? 'assets/icons/알림it_중요공지_O.svg'
-              : 'assets/icons/알림it_중요공지_X.svg',
+          isSelected ? 'assets/icons/알림it_중요공지_O.svg' : 'assets/icons/알림it_중요공지_X.svg',
         ),
       ),
     );
   }
+
   Widget _bookmarkInfoButton() {
     bool isSelected = selectedIndex == 2;
 
@@ -433,31 +436,20 @@ class _MainPageState extends State<MainPage> {
             pageNum = 0;
             elements = [];
           });
-
           await updateElements();
         },
         child: SvgPicture.asset(
-          isSelected
-              ? 'assets/icons/알림it_북마_O.svg'
-              : 'assets/icons/알림it_북마_X.svg',
+          isSelected ? 'assets/icons/알림it_북마_O.svg' : 'assets/icons/알림it_북마_X.svg',
         ),
       ),
     );
   }
-
-  //필터 값
-  int selectedIndex = 0; // 0: 전체, 1: 중요 공지, 2: 북마크
-
-  bool isLoading = false; // 데이터를 로딩 중인지 확인하는 변수
-
-  int _missingBookmarksInCache = 0;
 
   Future<void> updateElements() async {
     final bookmarkedItems = await bookmarkManager.getBookmarks();
     final notices = await loadBookmarkedItemsFromCache(bookmarkedItems);
 
     if (!mounted) return;
-    // 새로 불러온 데이터를 화면에 표시하기 위해 ElementWidget으로 변환
     final fetchedElements = notices.map((n) => ElementWidget(
       id: n.id,
       title: n.title,
@@ -469,28 +461,23 @@ class _MainPageState extends State<MainPage> {
 
     setState(() {
       if (selectedIndex == 2) {
-        elements = fetchedElements; // 새로 불러온 데이터로 업데이트
+        elements = fetchedElements;
       }
     });
   }
 
   Future<List<Notice>> loadBookmarkedItems(List<String> bookmarkedItems) async {
     final apiService = ApiService(
-        url:
-        "$port/notice?type=전체&page=$pageNum&major=$selectedMajor");
+      url: "$port/notice?type=전체&page=$pageNum&major=$selectedMajor",
+    );
 
-    List<Notice> allNotices = await apiService.fetchNotices(); // 전체 데이터를 불러옴
-
-    return allNotices.where((notice) {
-      // 북마크된 항목만 필터링
-      return bookmarkedItems.contains('${notice.id}');
-    }).toList();
+    final allNotices = await apiService.fetchNotices();
+    return allNotices.where((notice) => bookmarkedItems.contains('${notice.id}')).toList();
   }
+
   Future<List<Notice>> loadBookmarkedItemsFromCache(List<String> bookmarkedItems) async {
-    // 저장 형태가 String이면 int로 변환
     final ids = bookmarkedItems.map((e) => int.tryParse(e)).whereType<int>().toList();
 
-    // 순서 보존: 북마크에 저장된 순서대로 표시하고 싶을 때
     final List<Notice> result = [];
     int missingCount = 0;
 
@@ -499,52 +486,48 @@ class _MainPageState extends State<MainPage> {
       if (hit != null) {
         result.add(hit);
       } else {
-        missingCount++; // 캐시에 아직 없는 항목
+        missingCount++;
       }
     }
 
-    // (선택) 상태 보이기 위해 멤버로 보관
-    _missingBookmarksInCache = missingCount; // _MainPageState에 int 멤버 추가
-
+    _missingBookmarksInCache = missingCount;
     return result;
   }
 
   final Map<int, Notice> _noticeCache = {};
-  Future<void> loadData() async {
-    if (isLoading || !mounted) return;  // 이미 로딩 중이면 실행하지 않음
 
-    setState(() {
-      isLoading = true;
-    });
+  Future<void> loadData() async {
+    if (isLoading || !mounted) return;
+
+    setState(() => isLoading = true);
+
     try {
       final ApiService apiServiceAll = ApiService(
-          url:
-          "$port/notice?type=전체&page=0&major=$selectedMajor");
+        url: "$port/notice?type=전체&page=0&major=$selectedMajor",
+      );
       final ApiService apiServiceImportant = ApiService(
-          url:
-          "$port/notice?type=공지&page=0&major=$selectedMajor");
-      List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
+        url: "$port/notice?type=공지&page=0&major=$selectedMajor",
+      );
+
+      final bookmarkedItems = await bookmarkManager.getBookmarks();
       List<Notice> notices;
 
       if (selectedIndex == 0) {
-        // 전체 데이터를 가져오는 경우, 새로 API 호출하지 않고 기존 elements 그대로 사용
         notices = await apiServiceAll.fetchNotices();
       } else if (selectedIndex == 1) {
-        // 중요 데이터를 가져오는 경우, 새로 API 호출 후 중요 필터링
         notices = await apiServiceImportant.fetchNotices();
       } else if (selectedIndex == 2) {
-        // 북마크된 데이터를 가져오는 경우
         notices = await loadBookmarkedItems(bookmarkedItems);
       } else {
         notices = [];
       }
-      for (final n in notices){
+
+      for (final n in notices) {
         _noticeCache[n.id] = n;
       }
 
-      // Notice 데이터를 ElementWidget 리스트로 변환
       if (!mounted) return;
-      List<ElementWidget> fetchedElements = notices.map((notice) {
+      final fetchedElements = notices.map((notice) {
         return ElementWidget(
           id: notice.id,
           title: notice.title,
@@ -556,62 +539,53 @@ class _MainPageState extends State<MainPage> {
       }).toList();
 
       setState(() {
-        elements = fetchedElements; // 새로운 데이터를 elements에 할당
-        isLoading = false; // 로딩 완료
+        elements = fetchedElements;
+        isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        isLoading = false; // 오류 발생 시 로딩 종료
-      });
+      setState(() => isLoading = false);
       print("데이터 로드 실패: $e");
     }
   }
 
   Future<void> loadNewData() async {
-    if (isLoading || !mounted) return;  // 이미 로딩 중이면 실행하지 않음
+    if (isLoading || !mounted) return;
 
     setState(() {
       isLoading = true;
-      if(selectedIndex==0){
-        pageNum++;}
+      if (selectedIndex == 0) pageNum++;
     });
 
     try {
-      // 현재 스크롤 위치 저장
-
       final ApiService apiServiceAll = ApiService(
-          url:
-          "$port/notice?type=전체&page=$pageNum&major=$selectedMajor");
+        url: "$port/notice?type=전체&page=$pageNum&major=$selectedMajor",
+      );
       final ApiService apiServiceImportant = ApiService(
-          url:
-          "$port/notice?type=중요 공지&page=$pageNum&major=$selectedMajor");
-      List<String> bookmarkedItems = await bookmarkManager.getBookmarks();
+        url: "$port/notice?type=중요 공지&page=$pageNum&major=$selectedMajor",
+      );
+
+      final bookmarkedItems = await bookmarkManager.getBookmarks();
       List<Notice> notices;
 
       if (selectedIndex == 0) {
-        // 전체 데이터를 가져오는 경우, 새로 API 호출하지 않고 기존 elements 그대로 사용
         notices = await apiServiceAll.fetchNotices();
       } else if (selectedIndex == 1) {
-        // 중요 데이터를 가져오는 경우, 새로 API 호출 후 중요 필터링
         notices = await apiServiceImportant.fetchNotices();
       } else if (selectedIndex == 2) {
-        // 북마크된 데이터를 가져오는 경우
         notices = await loadBookmarkedItems(bookmarkedItems);
       } else {
         notices = [];
       }
 
-      // loadNewData() 내부, notices 받은 직후
       for (final n in notices) {
         _noticeCache[n.id] = n;
       }
 
       if (!mounted) return;
-      Set<int> existingIds = elements.map((e) => e.id).toSet();
-      // Notice 데이터를 ElementWidget 리스트로 변환
-      List<ElementWidget> fetchedElements = notices
-          .where((notice) => !existingIds.contains(notice.id)) // 중복 필터링
+      final existingIds = elements.map((e) => e.id).toSet();
+      final fetchedElements = notices
+          .where((notice) => !existingIds.contains(notice.id))
           .map((notice) => ElementWidget(
         id: notice.id,
         title: notice.title,
@@ -622,32 +596,25 @@ class _MainPageState extends State<MainPage> {
       ))
           .toList();
 
-
       setState(() {
-        elements.addAll(fetchedElements); // 새로운 데이터를 elements에 할당
-        isLoading = false; // 로딩 완료
+        elements.addAll(fetchedElements);
+        isLoading = false;
       });
-
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        isLoading = false; // 오류 발생 시 로딩 종료
-      });
+      setState(() => isLoading = false);
       print("데이터 로드 실패: $e");
     }
   }
 
-
-
   final ScrollController _scrollController = ScrollController();
+
   void _scrollListener() async {
     if (_scrollController.position.pixels ==
         _scrollController.position.maxScrollExtent) {
       if (!isLoading) {
-        double currentScrollPosition = _scrollController.position.pixels;
-
+        final currentScrollPosition = _scrollController.position.pixels;
         await loadNewData();
-
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_scrollController.hasClients) {
             _scrollController.jumpTo(currentScrollPosition - 5);
@@ -657,34 +624,114 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-  //페이지 이동
   void _navigateAndGetMajor() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => CategoryPage(selectedMajor: selectedMajor,)),
+      MaterialPageRoute(
+        builder: (context) => CategoryPage(selectedMajor: selectedMajor),
+      ),
     );
 
-    if (result != null) {
-      setState(() {
-        selectedMajor = result;
-        loadData();//데이터 초기
+    if (!mounted || result == null) return;
+
+    // CategoryPage에서 Map으로 내려주는 경우
+    if (result is Map) {
+      final newMajor = result["selectedMajor"] as String?;
+      final changed = result["changed"] as bool? ?? false;
+
+      if (newMajor != null && newMajor.isNotEmpty) {
+        setState(() {
+          selectedMajor = newMajor;
+          // (선택) 변경 여부 상태로 쓰고 싶으면 여기서 저장
+          // widget.changeMajor 대신 state 변수로 snackbar 제어 가능
+        });
+
+        loadData();
+
         _scrollController.animateTo(
           0.0,
-          duration: Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
-        );//스크롤 최상단으로
+        );
+
+        // (선택) changed면 스낵바 띄우기
+        if (changed) {
+          // snackbar 띄우는 기존 로직을 여기로 옮겨도 됨
+        }
+      }
+      return;
+    }
+
+    // 혹시 예전처럼 String만 내려주는 경우도 안전하게 처리
+    if (result is String && result.isNotEmpty) {
+      setState(() {
+        selectedMajor = result;
       });
+      loadData();
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
+  // ✅ Init 페이지 저장값 로드 + bell 초기값 + 알림 리스트 로드(구독 기준)
+  Future<void> _loadPrefsAndApply() async {
+    final prefs = await SharedPreferences.getInstance();
 
+    final mainMajor = prefs.getString(kMainMajorKey);
+    final alarmMajors = prefs.getStringList(kAlarmMajorsKey) ?? [];
+
+    // 대표 전공 결정 (prefs 우선)
+    final resolvedMainMajor =
+    (mainMajor != null && mainMajor.isNotEmpty) ? mainMajor : widget.selectedMajor;
+
+    // 알림 전공 리스트 결정
+    // - prefs에 있으면 그것
+    // - 없으면 대표전공 1개로 기본
+    final resolvedAlarmMajors =
+    alarmMajors.isNotEmpty ? alarmMajors : [resolvedMainMajor];
+
+    if (!mounted) return;
+    setState(() {
+      selectedMajor = resolvedMainMajor;
+      selectedAlarmMajors = resolvedAlarmMajors;
+      selected_bell = alarmMajors.isNotEmpty; // ✅ bell은 "prefs에 진짜로 알림전공이 저장돼있냐"로만 판단
+    });
+  }
+
+  Future<void> _checkConsentAndInitFCM() async {
+    final prefs = await SharedPreferences.getInstance();
+    final consented = prefs.getBool("privacy_consent_v1") ?? false;
+
+    if (consented) {
+      await _initializeFirebase();
+      setupMessageListener();
+      print("✅ 개인정보 동의함 → FCM 구독 진행");
+    } else {
+      print("❌ 개인정보 동의 안 함 → FCM 구독 막음");
+    }
+  }
+
+  // ✅ initState에서 "prefs 로드 후 loadData" 하도록 순서 정리
   @override
   void initState() {
     super.initState();
 
-    _checkConsentAndInitFCM(); // ✅ 동의 체크 후 FCM 초기화
-
+    // 기본값 먼저 세팅 (build 안정성)
     selectedMajor = widget.selectedMajor;
+    selectedAlarmMajors = widget.selectedAlram;
+    selected_bell = false;
+
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await _loadPrefsAndApply();   // ✅ 여기서 selectedMajor/bell/알림리스트 확정
+    await loadData();             // ✅ 이제 올바른 selectedMajor로 첫 로드
+    _scrollController.addListener(_scrollListener);
+    await _checkConsentAndInitFCM();
 
     if (widget.changeMajor) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -720,28 +767,13 @@ class _MainPageState extends State<MainPage> {
         );
       });
     }
-
-    loadData();
-    _scrollController.addListener(_scrollListener);
-  }
-  Future<void> _checkConsentAndInitFCM() async {
-    final prefs = await SharedPreferences.getInstance();
-    final consented = prefs.getBool("privacy_consent_v1") ?? false;
-
-    if (consented) {
-      // 개인정보 동의한 경우에만 FCM 초기화 & 토큰 구독
-      await _initializeFirebase();
-      setupMessageListener();
-      print("✅ 개인정보 동의함 → FCM 구독 진행");
-    } else {
-      print("❌ 개인정보 동의 안 함 → FCM 구독 막음");
-    }
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -757,9 +789,7 @@ class _MainPageState extends State<MainPage> {
               children: [
                 Column(
                   children: [
-                    SizedBox(
-                      height: 20,
-                    ),
+                    SizedBox(height: 20),
                     Row(
                       children: [
                         SvgPicture.asset(
@@ -767,22 +797,21 @@ class _MainPageState extends State<MainPage> {
                           width: 21,
                           height: 22,
                         ),
-                        SizedBox(
-                          width: 10,
-                        ),
+                        SizedBox(width: 10),
                         GestureDetector(
-                          onTap: () {_navigateAndGetMajor();},
-                          child: Container(
-                              child: Row(
-                                children: [
-                                  Text(selectedMajor),
-                                  Icon(
-                                    Icons.arrow_forward_ios_rounded,
-                                    color: Colors.grey,
-                                    size: 15,
-                                  )
-                                ],
-                              )),
+                          onTap: () {
+                            _navigateAndGetMajor();
+                          },
+                          child: Row(
+                            children: [
+                              Text(selectedMajor),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                color: Colors.grey,
+                                size: 15,
+                              )
+                            ],
+                          ),
                         ),
                         Spacer(),
                         _bellIcon(),
@@ -793,13 +822,10 @@ class _MainPageState extends State<MainPage> {
                               setState(() {
                                 isTextFieldVisible = !isTextFieldVisible;
                                 searchQuery = '';
-                                loadData();
                               });
+                              loadData();
                             },
-                            icon: Icon(
-                              Icons.close,
-                              size: 20,
-                            ),
+                            icon: Icon(Icons.close, size: 20),
                           )
                         else
                           IconButton(
@@ -808,27 +834,19 @@ class _MainPageState extends State<MainPage> {
                                 isTextFieldVisible = !isTextFieldVisible;
                               });
                             },
-                            icon: SvgPicture.asset(
-                              'assets/icons/알림it_검색.svg',
-                            ),
+                            icon: SvgPicture.asset('assets/icons/알림it_검색.svg'),
                             iconSize: 160,
                           ),
                       ],
                     ),
-                    SizedBox(
-                      height: 20,
-                    ),
+                    SizedBox(height: 20),
                     if (isTextFieldVisible)
                       Row(
                         children: [
                           _allInfoButton(),
-                          SizedBox(
-                            width: 8,
-                          ),
+                          SizedBox(width: 8),
                           _importantInfoButton(),
-                          SizedBox(
-                            width: 8,
-                          ),
+                          SizedBox(width: 8),
                           _bookmarkInfoButton(),
                           Spacer(),
                         ],
@@ -842,49 +860,49 @@ class _MainPageState extends State<MainPage> {
                                 child: TextField(
                                   controller: _controller,
                                   style: TextStyle(
-                                      fontSize: 15.12,
-                                      fontWeight: FontWeight.bold),
+                                    fontSize: 15.12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                   onChanged: (val) {
                                     setState(() {
-                                      searchQuery = val;// 🔹 검색어 업데이트
+                                      searchQuery = val;
                                       _onSearchChanged(val);
                                     });
                                   },
                                   decoration: InputDecoration(
-                                      hintText: "검색어를 입력해주세요",
-                                      hintStyle: TextStyle(color: Color(0xffA3A3A3)),
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.only(bottom: 5),
-                                      focusedBorder: InputBorder.none,
-                                      enabledBorder: InputBorder.none
+                                    hintText: "검색어를 입력해주세요",
+                                    hintStyle:
+                                    TextStyle(color: Color(0xffA3A3A3)),
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.only(bottom: 5),
+                                    focusedBorder: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
                                   ),
                                 ),
                               ),
                               Container(
-                                  padding:EdgeInsets.fromLTRB(0, 0, 15, 5),
-                                  child: GestureDetector(
-                                      onTap: (){},
-                                      child: Text('검색', style: TextStyle(color: Color(0xff009D72)),)))
+                                padding: EdgeInsets.fromLTRB(0, 0, 15, 5),
+                                child: GestureDetector(
+                                  onTap: () {},
+                                  child: Text('검색',
+                                      style: TextStyle(color: Color(0xff009D72))),
+                                ),
+                              ),
                             ],
                           ),
-                          Container(height: 2, color: Color(0xff009D72),),
+                          Container(height: 2, color: Color(0xff009D72)),
                         ],
                       ),
-                    SizedBox(
-                      height: 23,
-                    ),
-                    if(isTextFieldVisible)
+                    SizedBox(height: 23),
+                    if (isTextFieldVisible)
                       Container(
                         height: 1,
                         width: double.infinity,
                         color: Colors.black,
                       )
                   ],
-                ), // 헤더
-                if (isLoading)
-                  Center(child: null,), // 로딩 상태일 때
-
-                // 리스트 뷰 표시
+                ),
+                if (isLoading) Center(child: null),
                 if (!isLoading && elements.isNotEmpty)
                   Expanded(
                     child: ListView.builder(
@@ -892,15 +910,18 @@ class _MainPageState extends State<MainPage> {
                       controller: _scrollController,
                       itemCount: elements.length,
                       itemBuilder: (context, index) {
-                        return elements[index]; // ElementWidget 반환
+                        return elements[index];
                       },
                     ),
                   ),
                 if (!isLoading && elements.isEmpty)
                   Column(
                     children: [
-                      SizedBox(height: 230,),
-                      Text('공지된 북마크가 없습니다', style: TextStyle(fontSize:20, color: Color(0xff9C9C9C)),),
+                      SizedBox(height: 230),
+                      Text(
+                        '공지된 북마크가 없습니다',
+                        style: TextStyle(fontSize: 20, color: Color(0xff9C9C9C)),
+                      ),
                     ],
                   )
               ],
