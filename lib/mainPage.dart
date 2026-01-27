@@ -283,8 +283,9 @@ class _MainPageState extends State<MainPage> {
       final response = await apiService.postFCMToken(deviceId, fcmToken!);
       final message = response['message'] ?? '응답 메시지가 없습니다.';
       print("📨 서버 응답: $message");
-    } catch (e) {
-      print("❌ 오류 발생: $e");
+    } catch (e, st) {
+      print("❌ _fcmPost error: $e");
+      print(st);
       showNotification("서버 요청 중 오류가 발생했습니다.");
     }
   }
