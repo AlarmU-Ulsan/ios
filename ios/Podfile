@@ -43,6 +43,20 @@ end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
+    # ✅ 구버전 Flutter 템플릿에서 필수 (Flutter/Flutter.h 연결 포함)
     flutter_additional_ios_build_settings(target)
+
+    target.build_configurations.each do |config|
+      # 모든 Pod 타겟의 deployment target을 14.0으로 강제
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+
+      # Xcode에서 DT_TOOLCHAIN_DIR 평가 오류 방지
+      lsp = config.build_settings['LIBRARY_SEARCH_PATHS']
+      if lsp.is_a?(String)
+        config.build_settings['LIBRARY_SEARCH_PATHS'] = lsp.gsub('DT_TOOLCHAIN_DIR', 'TOOLCHAIN_DIR')
+      elsif lsp.is_a?(Array)
+        config.build_settings['LIBRARY_SEARCH_PATHS'] = lsp.map { |p| p.gsub('DT_TOOLCHAIN_DIR', 'TOOLCHAIN_DIR') }
+      end
+    end
   end
 end

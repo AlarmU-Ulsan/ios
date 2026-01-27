@@ -163,36 +163,53 @@ class _MainPageState extends State<MainPage> {
     print("Firebase 초기화 완료");
 
     if (Platform.isIOS) {
-      await _messaging.requestPermission(
+      final settings = await _messaging.requestPermission(
         alert: true,
         badge: true,
         sound: true,
       );
+      print("🔐 iOS notification auth status: ${settings.authorizationStatus}");
     }
 
-    String? apnsToken = await _messaging.getAPNSToken();
-    if (apnsToken != null) {
-      print("🔹 APNS Token is available");
+    // ✅ 1) FCM 토큰은 먼저 받아서 서버 등록 (APNs null이어도 진행)
+    fcmToken = await _messaging.getToken();
+    print("🧩 FCM token: $fcmToken");
+
+    if (fcmToken == null) {
+      print("⚠️ FCM 토큰을 가져올 수 없습니다. (네트워크/설정 이슈 가능)");
+    } else {
+      await _fcmPost();
+    }
+
+    // ✅ 2) APNs 토큰은 늦게 나올 수 있으니 재시도만 하고, 실패해도 전체를 막지 않음
+    String? apnsToken;
+    for (int i = 0; i < 5; i++) {
+      apnsToken = await _messaging.getAPNSToken();
+      print("🍎 APNs token try#$i: ${apnsToken ?? "null"}");
+      if (apnsToken != null) break;
+      await Future.delayed(const Duration(seconds: 2));
     }
 
     if (apnsToken == null) {
-      print("⚠️ APNS 토큰을 가져올 수 없습니다.");
-      return;
+      print("⚠️ APNs 토큰이 아직 없습니다. (권한/서명/설치 상태 확인 필요)");
+      // ✅ return 하지 말 것!
+    } else {
+      print("✅ APNs Token is available");
     }
 
-    fcmToken = await _messaging.getToken();
-    if (fcmToken != null) {
-      print("🔹 FCM Token is available");
-    }
-
-    await _fcmPost();
-
-    // ✅ 구독은 widget.selectedAlram이 아니라 "prefs에서 읽은 알림 전공 리스트" 기준으로
+    // ✅ 3) 구독은 FCM 토큰 등록 후 진행
     if (selectedAlarmMajors.isNotEmpty) {
       await _subscribeMajor();
     } else {
       print('구독한 전공이 없습니다!!');
     }
+
+    // ✅ 4) 토큰 갱신 시 서버 업데이트(중요)
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+      print("🔁 FCM token refreshed: $newToken");
+      fcmToken = newToken;
+      await _fcmPost();
+    });
   }
 
   void setupMessageListener() {
