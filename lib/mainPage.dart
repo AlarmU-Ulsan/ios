@@ -139,6 +139,7 @@ class _MainPageState extends State<MainPage> {
   bool selected_bell = false; // bell 상태는 prefs 기반으로 세팅
   Widget _bellIcon() {
     return GestureDetector(
+      onLongPress: () => showApnsTokenDialog(context),
       onTap: () async {
         String deviceID = await getDeviceId();
         Navigator.push(
@@ -154,13 +155,23 @@ class _MainPageState extends State<MainPage> {
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
+  ///
+  ///
+  String? _debugApnsToken;
+  String? _debugFcmToken;
+  AuthorizationStatus? _debugAuthStatus;
+  String _debugStatusLog = "";
+  ///
+  ///
+
   Future<void> _initializeFirebase() async {
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
     }
-    print("Firebase 초기화 완료");
+
+    _debugStatusLog = "Firebase init OK\n";
 
     if (Platform.isIOS) {
       final settings = await _messaging.requestPermission(
@@ -168,49 +179,68 @@ class _MainPageState extends State<MainPage> {
         badge: true,
         sound: true,
       );
-      print("🔐 iOS notification auth status: ${settings.authorizationStatus}");
+      _debugAuthStatus = settings.authorizationStatus;
+      _debugStatusLog += "iOS 권한: ${settings.authorizationStatus}\n";
     }
 
-    // ✅ 1) FCM 토큰은 먼저 받아서 서버 등록 (APNs null이어도 진행)
-    fcmToken = await _messaging.getToken();
-    print("🧩 FCM token: $fcmToken");
-
-    if (fcmToken == null) {
-      print("⚠️ FCM 토큰을 가져올 수 없습니다. (네트워크/설정 이슈 가능)");
-    } else {
+    // ✅ FCM
+    _debugFcmToken = await _messaging.getToken();
+    if (_debugFcmToken != null) {
+      _debugStatusLog += "FCM token OK\n";
       await _fcmPost();
+    } else {
+      _debugStatusLog += "❌ FCM token NULL\n";
     }
 
-    // ✅ 2) APNs 토큰은 늦게 나올 수 있으니 재시도만 하고, 실패해도 전체를 막지 않음
-    String? apnsToken;
+    // ✅ APNs
     for (int i = 0; i < 5; i++) {
-      apnsToken = await _messaging.getAPNSToken();
-      print("🍎 APNs token try#$i: ${apnsToken ?? "null"}");
-      if (apnsToken != null) break;
+      _debugApnsToken = await _messaging.getAPNSToken();
+      if (_debugApnsToken != null) break;
       await Future.delayed(const Duration(seconds: 2));
     }
 
-    if (apnsToken == null) {
-      print("⚠️ APNs 토큰이 아직 없습니다. (권한/서명/설치 상태 확인 필요)");
-      // ✅ return 하지 말 것!
+    if (_debugApnsToken != null) {
+      _debugStatusLog += "APNs token OK\n";
     } else {
-      print("✅ APNs Token is available");
+      _debugStatusLog += "❌ APNs token NULL\n";
     }
-
-    // ✅ 3) 구독은 FCM 토큰 등록 후 진행
-    if (selectedAlarmMajors.isNotEmpty) {
-      await _subscribeMajor();
-    } else {
-      print('구독한 전공이 없습니다!!');
-    }
-
-    // ✅ 4) 토큰 갱신 시 서버 업데이트(중요)
-    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
-      print("🔁 FCM token refreshed: $newToken");
-      fcmToken = newToken;
-      await _fcmPost();
-    });
   }
+
+  ///
+  ///
+  Future<void> showPushDebugDialog(BuildContext context) async {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("🔔 Push Debug Status"),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            '''
+[권한]
+${_debugAuthStatus ?? "unknown"}
+
+[FCM Token]
+${_debugFcmToken != null ? "OK" : "NULL"}
+
+[APNs Token]
+${_debugApnsToken != null ? "OK" : "NULL"}
+
+[Raw Log]
+$_debugStatusLog
+          ''',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("닫기"),
+          ),
+        ],
+      ),
+    );
+  }
+  ///
+  ///
 
   void setupMessageListener() {
     print('setupmessageListener 함수 정상 적용');
