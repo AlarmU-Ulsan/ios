@@ -139,7 +139,7 @@ class _MainPageState extends State<MainPage> {
   bool selected_bell = false; // bell 상태는 prefs 기반으로 세팅
   Widget _bellIcon() {
     return GestureDetector(
-      onLongPress: () => showApnsTokenDialog(context),
+      onLongPress: () => showPushDebugDialog(context),
       onTap: () async {
         String deviceID = await getDeviceId();
         Navigator.push(
