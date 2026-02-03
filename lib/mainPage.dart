@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -297,26 +298,26 @@ $_debugStatusLog
     }
   }
 
-  String? fcmToken;
-
   Future<void> _fcmPost() async {
     print('\n===== 기기등록 API =====');
-    if (fcmToken == null) {
-      print("⚠️ FCM 토큰이 존재하지 않습니다.");
+
+    if (_debugFcmToken == null) {
+      _debugStatusLog += "❌ 서버 전송 실패: FCM 토큰 NULL\n";
       return;
     }
 
     String deviceId = await getDeviceId();
-    final ApiService apiService = ApiService(url: "$port/fcm/fcm_token");
+    final ApiService apiService =
+    ApiService(url: "$port/fcm/fcm_token");
 
     try {
-      final response = await apiService.postFCMToken(deviceId, fcmToken!);
-      final message = response['message'] ?? '응답 메시지가 없습니다.';
-      print("📨 서버 응답: $message");
-    } catch (e, st) {
-      print("❌ _fcmPost error: $e");
-      print(st);
-      showNotification("서버 요청 중 오류가 발생했습니다.");
+      final response =
+      await apiService.postFCMToken(deviceId, _debugFcmToken!);
+
+      _debugStatusLog +=
+      "📡 [FCM 등록 응답]\n${const JsonEncoder.withIndent('  ').convert(response)}\n";
+    } catch (e) {
+      _debugStatusLog += "❌ FCM 등록 API 에러: $e\n";
     }
   }
 
