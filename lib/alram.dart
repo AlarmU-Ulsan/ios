@@ -29,10 +29,10 @@ class _AlarmPageState extends State<AlarmPage> {
     "미래엔지니어링융합대학": [
       "ICT융합학부",
       '미래모빌리티공학부',
-      '신소재·반도체융합학부',
+      '신소재반도체융합학부',
       '전기전자융합학부',
     ],
-    '스마트도시융합대학': ['건축·도시환경학부', '디자인융합학부', '스포츠과학부'],
+    '스마트도시융합대학': ['건축도시환경학부', '디자인융합학부', '스포츠과학부'],
     '경영·공공정책대학': ['경영경제융합학부'],
     '인문예술대학': ['글로벌인문학부', '예술학부'],
     '아산아너스칼리지': ['자율전공학부'],
@@ -122,7 +122,7 @@ class _AlarmPageState extends State<AlarmPage> {
                   // 👉 하나라도 선택하면 스위치 자동 ON (원하면 유지)
                   if (!_isChecked) {
                     _isChecked = true;
-                    showNotification('알림이 설정되었습니다');
+                    // showNotification('알림이 설정되었습니다');
                   }
                 }
               });
@@ -287,7 +287,7 @@ class _AlarmPageState extends State<AlarmPage> {
                         await ConsentManager.setConsented(true);
                         await _registerFcmTokenIfNeeded();
                         setState(() => _isChecked = true);
-                        showNotification('알림이 설정되었습니다');
+                        // showNotification('알림이 설정되었습니다');
 
                         // 켜면 현재 선택된 전공들 구독
                         for (String major in _isSelectedList) {
@@ -303,7 +303,7 @@ class _AlarmPageState extends State<AlarmPage> {
                     final next = value ?? false;
 
                     if (!next) {
-                      showNotification('알림이 해제되었습니다');
+                      // showNotification('알림이 해제되었습니다');
 
                       for (String major in _isSelectedList) {
                         await _unsubscribeMajor(major);
@@ -321,7 +321,7 @@ class _AlarmPageState extends State<AlarmPage> {
 
                     // ✅ ON으로 켜는 경우: 현재 리스트 구독 (리스트가 비어있으면 그냥 ON만)
                     setState(() => _isChecked = true);
-                    showNotification('알림이 설정되었습니다');
+                    // showNotification('알림이 설정되었습니다');
 
                     for (String major in _isSelectedList) {
                       await _subscribeMajor(major);

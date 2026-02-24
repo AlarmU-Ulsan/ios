@@ -75,10 +75,9 @@ class ApiService {
     print('📱 deviceId: $deviceId');
     print('🔑 fcmToken: $fcmToken');
 
-    String fullUrl = "$url?deviceId=$deviceId&fcmToken=$fcmToken";
-
+    // ✅ 쿼리스트링 제거
     final response = await http.post(
-      Uri.parse(fullUrl),
+      Uri.parse(url),
       headers: {
         "Content-Type": "application/json",
       },
@@ -105,10 +104,9 @@ class ApiService {
     print('📘 major: $major');
 
     try {
-      String fullUrl = "$url?deviceId=$deviceId&major=$major";
-
+      // ✅ 쿼리스트링 제거: "$url?deviceId=...&major=..." 금지
       final response = await http.post(
-        Uri.parse(fullUrl),
+        Uri.parse(url),
         headers: {
           "Content-Type": "application/json",
         },

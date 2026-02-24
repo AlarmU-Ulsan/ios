@@ -140,7 +140,7 @@ class _MainPageState extends State<MainPage> {
   bool selected_bell = false; // bell 상태는 prefs 기반으로 세팅
   Widget _bellIcon() {
     return GestureDetector(
-      onLongPress: () => showPushDebugDialog(context),
+      // onLongPress: () => showPushDebugDialog(context),
       onTap: () async {
         String deviceID = await getDeviceId();
         Navigator.push(
@@ -763,6 +763,7 @@ $_debugStatusLog
     }
   }
 
+
   // ✅ initState에서 "prefs 로드 후 loadData" 하도록 순서 정리
   @override
   void initState() {
@@ -781,6 +782,7 @@ $_debugStatusLog
     await loadData();             // ✅ 이제 올바른 selectedMajor로 첫 로드
     _scrollController.addListener(_scrollListener);
     await _checkConsentAndInitFCM();
+    await _subscribeMajor();
 
     if (widget.changeMajor) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -41,49 +41,49 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyB6tGQ9w-69Y_T0MeEeAvsSGL_Grhqd4yk',
-    appId: '1:398280503958:web:f9a5f53f17db27a07a88b7',
-    messagingSenderId: '398280503958',
-    projectId: 'alarm-it',
-    authDomain: 'alarm-it.firebaseapp.com',
-    storageBucket: 'alarm-it.firebasestorage.app',
-    measurementId: 'G-L27PDTHSHX',
+    apiKey: 'AIzaSyBpEUJxmYleRUeFDlg9aLE6RcScsoByiy0',
+    appId: '1:686539632718:web:90a9ce7dee9ea89c1b131f',
+    messagingSenderId: '686539632718',
+    projectId: 'alarmit--uou',
+    authDomain: 'alarmit--uou.firebaseapp.com',
+    storageBucket: 'alarmit--uou.firebasestorage.app',
+    measurementId: 'G-VQB92LSVPX',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyC88L52c16e3G0g92Z0OC_YuxjJtNIdGOE',
-    appId: '1:398280503958:android:ffb7547685050bfa7a88b7',
-    messagingSenderId: '398280503958',
-    projectId: 'alarm-it',
-    storageBucket: 'alarm-it.firebasestorage.app',
+    apiKey: 'AIzaSyC-UJb4CtxPopiJrAKodbwnEi4bCawV4Is',
+    appId: '1:686539632718:android:6ca0959b22f2fdc31b131f',
+    messagingSenderId: '686539632718',
+    projectId: 'alarmit--uou',
+    storageBucket: 'alarmit--uou.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAkvDyVkH_owpnJlE5Yu7Faowi3zpD6E2w',
-    appId: '1:398280503958:ios:0845c84ebaa211627a88b7',
-    messagingSenderId: '398280503958',
-    projectId: 'alarm-it',
-    storageBucket: 'alarm-it.firebasestorage.app',
-    iosBundleId: 'com.example.notificationIt',
+    apiKey: 'AIzaSyBYtXBxmXeKiqDzK5VPyDKUnOjtzBHj7BE',
+    appId: '1:686539632718:ios:8f3985bd05ae84741b131f',
+    messagingSenderId: '686539632718',
+    projectId: 'alarmit--uou',
+    storageBucket: 'alarmit--uou.firebasestorage.app',
+    iosBundleId: 'com.uou.alarmit',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyAkvDyVkH_owpnJlE5Yu7Faowi3zpD6E2w',
-    appId: '1:398280503958:ios:0845c84ebaa211627a88b7',
-    messagingSenderId: '398280503958',
-    projectId: 'alarm-it',
-    storageBucket: 'alarm-it.firebasestorage.app',
+    apiKey: 'AIzaSyBYtXBxmXeKiqDzK5VPyDKUnOjtzBHj7BE',
+    appId: '1:686539632718:ios:4cae07de119c97581b131f',
+    messagingSenderId: '686539632718',
+    projectId: 'alarmit--uou',
+    storageBucket: 'alarmit--uou.firebasestorage.app',
     iosBundleId: 'com.example.notificationIt',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyB6tGQ9w-69Y_T0MeEeAvsSGL_Grhqd4yk',
-    appId: '1:398280503958:web:89d44792ac8af0577a88b7',
-    messagingSenderId: '398280503958',
-    projectId: 'alarm-it',
-    authDomain: 'alarm-it.firebaseapp.com',
-    storageBucket: 'alarm-it.firebasestorage.app',
-    measurementId: 'G-HRN4LSV77D',
+    apiKey: 'AIzaSyBpEUJxmYleRUeFDlg9aLE6RcScsoByiy0',
+    appId: '1:686539632718:web:8c9b43adf3ec51b01b131f',
+    messagingSenderId: '686539632718',
+    projectId: 'alarmit--uou',
+    authDomain: 'alarmit--uou.firebaseapp.com',
+    storageBucket: 'alarmit--uou.firebasestorage.app',
+    measurementId: 'G-KNB00MYBLY',
   );
 
 }
